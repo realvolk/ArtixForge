@@ -32,12 +32,9 @@ tui_show_sanity_warnings() {
     [[ "$(state_get COREUTILS)" == "custom" ]] && warnings+=("Custom coreutils — ensure all essential tools are implemented")
     [[ "$(state_get COREUTILS)" != "gnu" && "$(state_get COREUTILS)" != "none" && "$(state_get COREUTILS)" != "" ]] && warnings+=("Non-GNU coreutils: some install scripts may behave unexpectedly")
 
-
     [[ "$(state_get WM_DE)" == "cosmic" ]] && warnings+=("COSMIC is alpha software — APIs may change, features may be missing")
     [[ "$(state_get WM_DE)" == "moksha" ]] && warnings+=("Moksha/Enlightenment is community-maintained — limited testing")
     [[ "$(state_get WM_DE)" == "none" ]] && warnings+=("No desktop environment selected")
-    [[ "$(state_get WM_DE)" == "sonicde" ]] && warnings+=("SonicDE is a third-party KDE replacement — not officially supported by Artix")
-    [[ "$(state_get WM_DE)" == "sonicde" && "$(state_get ENABLE_ARCH_REPOS)" == "no" ]] && warnings+=("SonicDE may need Arch repositories for dependencies")
     [[ "$(state_get WM_DE)" =~ ^(hyprland|niri|sway)$ && "$(state_get X_STACK)" == "xorg" ]] && warnings+=("Wayland compositor selected but X.Org display stack configured")
     [[ "$(state_get WM_DE)" =~ ^(hyprland|niri)$ && "$(state_get ENABLE_ARCH_REPOS)" == "no" ]] && warnings+=("Hyprland/Niri may need Arch repositories for dependencies")
     [[ "$(state_get DISPLAY_MANAGER)" == "none" && "$(state_get WM_DE)" != "none" ]] && warnings+=("No display manager — you'll start the desktop manually")
@@ -52,8 +49,6 @@ tui_show_sanity_warnings() {
 
     [[ "$(state_get PRIV_ESCALATION)" == "none" ]] && warnings+=("No privilege escalation tool — you'll need to configure su manually")
     [[ "$(state_get PRIV_ESCALATION)" == "doas" && "$(state_get POWER_USER)" == "yes" ]] && warnings+=("doas + Power User: anvil commands require root; use 'doas anvil ...'")
-
-    [[ "$(state_get QUICK_INSTALL)" == "yes" && "$(state_get WM_DE)" == "embedded" ]] && warnings+=("Embedded profile: minimal system, no networking, no desktop — know what you're doing")
 
     if [[ ${#warnings[@]} -gt 0 ]]; then
         local msg

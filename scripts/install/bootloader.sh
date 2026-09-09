@@ -7,6 +7,7 @@ source "${BOOTLOADER_DIR}/grub.sh"
 source "${BOOTLOADER_DIR}/refind.sh"
 source "${BOOTLOADER_DIR}/efistub.sh"
 source "${BOOTLOADER_DIR}/limine.sh"
+source "${BOOTLOADER_DIR}/uboot.sh"
 
 generate_root_cmdline() {
     local fs_type="${1}"
@@ -225,6 +226,14 @@ configure_bootloader() {
         artix-chroot /mnt grub-install --target=i386-pc --boot-directory=/boot "$(state_get DISK)" || die 'grub-install failed'
         artix-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg || die 'grub-mkconfig failed'
         log_info "Bootloader setup complete (BIOS)."
+        return 0
+    fi
+
+    if [[ "${bootloader}" == "uboot" ]]; then
+        log_info "Configuring U-Boot..."
+        export fs_type crypt_uuid mapper_name root_uuid root_param root_device
+        bootloader_install_uboot
+        log_info "Bootloader setup complete (U-Boot)."
         return 0
     fi
 

@@ -2,18 +2,89 @@
 set -Eeuo pipefail
 
 MIG_ROOT=""
-if [[ -d /run/artix/sfs/rootfs ]]; then
-    if ! mountpoint -q /mnt; then
-        tui_msg "Live ISO Detected" "Init migration from live ISO requires the target system mounted at /mnt."
-        if tui_yesno "Mount Target" "Would you like to mount it now?"; then
-            recovery_mount_all
-        else
-            tui_msg_quick "Migration Cancelled" "Mount the target system at /mnt and retry."
-            exit 1
+
+_verify_migration_root() {
+    local root="${1}"
+    [[ -d "${root}" ]] || return 1
+    [[ -f "${root}/etc/os-release" ]] || return 1
+    [[ -x "${root}/usr/bin/pacman" ]] || return 1
+    [[ -d "${root}/var/lib/pacman" ]] || return 1
+    return 0
+}
+
+_verify_running_system() {
+    [[ -f /etc/os-release ]] || return 1
+    [[ -x /usr/bin/pacman ]] || return 1
+    [[ -d /var/lib/pacman ]] || return 1
+    return 0
+}
+
+ensure_migration_root() {
+    local persisted_root
+    persisted_root="$(state_get MIG_ROOT "")"
+
+    if [[ -n "${persisted_root}" ]]; then
+        if _verify_migration_root "${persisted_root}"; then
+            MIG_ROOT="${persisted_root}"
+            export MIG_ROOT
+            log_info "Migration target (resumed): ${MIG_ROOT}"
+            return 0
         fi
+        log_warn "Persisted migration root ${persisted_root} is no longer valid."
     fi
-    MIG_ROOT="/mnt"
-fi
+
+    local on_live_iso=false
+    [[ -d /run/artix/sfs/rootfs ]] && on_live_iso=true
+    [[ -f /run/artix/live ]] && on_live_iso=true
+
+    if [[ "${on_live_iso}" == true ]]; then
+        tui_msg "Live ISO Detected" "Migration requires the target system to be mounted."
+        local mount_choice
+        mount_choice=$(tui_menu "Target Selection" "How do you want to locate the target system?" \
+            "Auto-mount (LUKS/LVM/plain)" \
+            "Use /mnt (already mounted)" \
+            "Specify mount point") || { tui_msg_quick "Cancelled" "Migration cancelled."; exit 0; }
+
+        case "${mount_choice}" in
+            "Auto-mount"*)
+                recovery_mount_all || { tui_msg_quick "Mount Failed" "Could not mount target system."; exit 1; }
+                MIG_ROOT="/mnt"
+                ;;
+            "Use /mnt"*)
+                _verify_migration_root "/mnt" || { tui_msg "Invalid Target" "/mnt is not a valid Artix installation."; exit 1; }
+                MIG_ROOT="/mnt"
+                ;;
+            "Specify"*)
+                MIG_ROOT=$(tui_input "Mount Point" "Enter the mount point of the target system:" "/mnt") || exit 1
+                [[ -n "${MIG_ROOT}" ]] || exit 1
+                _verify_migration_root "${MIG_ROOT}" || { tui_msg "Invalid Target" "${MIG_ROOT} is not a valid Artix installation."; exit 1; }
+                ;;
+        esac
+    else
+        local choice
+        choice=$(tui_menu "Migration Target" "Which system do you want to migrate?" \
+            "This running system" \
+            "A mounted installation") || { tui_msg_quick "Cancelled" "Migration cancelled."; exit 0; }
+
+        case "${choice}" in
+            "This running"*)
+                MIG_ROOT=""
+                _verify_running_system || { tui_msg "Invalid System" "This does not appear to be a valid Artix installation."; exit 1; }
+                ;;
+            "A mounted"*)
+                MIG_ROOT=$(tui_input "Mount Point" "Enter the mount point of the target system:" "/mnt") || exit 1
+                [[ -n "${MIG_ROOT}" ]] || exit 1
+                _verify_migration_root "${MIG_ROOT}" || { tui_msg "Invalid Target" "${MIG_ROOT} is not a valid Artix installation."; exit 1; }
+                ;;
+        esac
+    fi
+
+    export MIG_ROOT
+    state_set MIG_ROOT "${MIG_ROOT}"
+    log_info "Migration target: ${MIG_ROOT:-running system}"
+}
+
+ensure_migration_root
 
 _chroot() {
     if [[ -n "${MIG_ROOT}" ]]; then
@@ -42,6 +113,7 @@ declare -A OPENRC_TO_DINIT=(
     ["cronie"]="cronie"
     ["dbus"]="dbus"
     ["elogind"]="elogind"
+    ["logind"]="elogind"
     ["seatd"]="seatd"
     ["acpid"]="acpid"
     ["alsa"]="alsa"
@@ -65,6 +137,7 @@ declare -A OPENRC_TO_RUNIT=(
     ["cronie"]="cronie"
     ["dbus"]="dbus"
     ["elogind"]="elogind"
+    ["logind"]="elogind"
     ["seatd"]="seatd"
     ["acpid"]="acpid"
     ["alsa"]="alsa"
@@ -85,6 +158,7 @@ declare -A OPENRC_TO_S6=(
     ["cronie"]="cronie"
     ["dbus"]="dbus"
     ["elogind"]="elogind"
+    ["logind"]="elogind"
     ["seatd"]="seatd"
     ["acpid"]="acpid"
     ["alsa"]="alsa"
@@ -97,23 +171,24 @@ declare -A OPENRC_TO_S6=(
 )
 
 declare -A SYSTEMD_TO_OPENRC=(
-    ["NetworkManager.service"]="NetworkManager"
-    ["networkmanager.service"]="NetworkManager"
-    ["dhcpcd.service"]="dhcpcd"
-    ["iwd.service"]="iwd"
-    ["sshd.service"]="sshd"
-    ["cronie.service"]="cronie"
-    ["dbus.service"]="dbus"
-    ["elogind.service"]="elogind"
-    ["seatd.service"]="seatd"
-    ["acpid.service"]="acpid"
-    ["alsa-restore.service"]="alsa"
-    ["bluetooth.service"]="bluetoothd"
-    ["connman.service"]="connmand"
-    ["ufw.service"]="ufw"
-    ["firewalld.service"]="firewalld"
-    ["ntpd.service"]="ntpd"
-    ["syslog-ng.service"]="syslog-ng"
+    ["NetworkManager"]="NetworkManager"
+    ["networkmanager"]="NetworkManager"
+    ["dhcpcd"]="dhcpcd"
+    ["iwd"]="iwd"
+    ["sshd"]="sshd"
+    ["cronie"]="cronie"
+    ["dbus"]="dbus"
+    ["elogind"]="elogind"
+    ["logind"]="elogind"
+    ["seatd"]="seatd"
+    ["acpid"]="acpid"
+    ["alsa-restore"]="alsa"
+    ["bluetooth"]="bluetoothd"
+    ["connman"]="connmand"
+    ["ufw"]="ufw"
+    ["firewalld"]="firewalld"
+    ["ntpd"]="ntpd"
+    ["syslog-ng"]="syslog-ng"
 )
 
 declare -A DINIT_TO_OPENRC=()
@@ -148,10 +223,18 @@ list_enabled_services() {
                 fi
                 artix-chroot "${MIG_ROOT}" rc-update show -v 2>/dev/null | awk '/default|boot|nonetwork/ {print $1}' | sort -u
                 ;;
-            runit)  [[ -d "${MIG_ROOT}/etc/runit/runsvdir/default" ]] && ls "${MIG_ROOT}/etc/runit/runsvdir/default/" 2>/dev/null || echo "" ;;
-            dinit)  [[ -d "${MIG_ROOT}/etc/dinit.d/boot.d" ]] && ls "${MIG_ROOT}/etc/dinit.d/boot.d/" 2>/dev/null | sed 's/\.d$//' || echo "" ;;
-            s6)     artix-chroot "${MIG_ROOT}" s6-rc-db list services 2>/dev/null || echo "" ;;
-            systemd) artix-chroot "${MIG_ROOT}" systemctl list-unit-files --state=enabled 2>/dev/null | awk '/\.service/ {print $1}' || echo "" ;;
+            runit)
+                [[ -d "${MIG_ROOT}/etc/runit/runsvdir/default" ]] && find "${MIG_ROOT}/etc/runit/runsvdir/default" -maxdepth 1 -type l -printf '%f\n' 2>/dev/null | sort -u || echo ""
+                ;;
+            dinit)
+                [[ -d "${MIG_ROOT}/etc/dinit.d/boot.d" ]] && find "${MIG_ROOT}/etc/dinit.d/boot.d" -maxdepth 1 -type l -printf '%f\n' 2>/dev/null | sort -u || echo ""
+                ;;
+            s6)
+                artix-chroot "${MIG_ROOT}" sh -c 's6-rc-db list bundle default 2>/dev/null || s6-rc-db list services 2>/dev/null' 2>/dev/null || echo ""
+                ;;
+            systemd)
+                artix-chroot "${MIG_ROOT}" systemctl list-unit-files --state=enabled 2>/dev/null | awk '/\.service/ {gsub(/\.service$/, "", $1); print $1}' | sort -u || echo ""
+                ;;
             *)      echo "" ;;
         esac
     else
@@ -163,10 +246,18 @@ list_enabled_services() {
                 fi
                 rc-update show -v 2>/dev/null | awk '/default|boot|nonetwork/ {print $1}' | sort -u
                 ;;
-            runit)  [[ -d /etc/runit/runsvdir/default ]] && ls /etc/runit/runsvdir/default/ 2>/dev/null || echo "" ;;
-            dinit)  [[ -d /etc/dinit.d/boot.d ]] && ls /etc/dinit.d/boot.d/ 2>/dev/null | sed 's/\.d$//' || echo "" ;;
-            s6)     s6-rc-db list services 2>/dev/null || echo "" ;;
-            systemd) systemctl list-unit-files --state=enabled 2>/dev/null | awk '/\.service/ {print $1}' || echo "" ;;
+            runit)
+                [[ -d /etc/runit/runsvdir/default ]] && find /etc/runit/runsvdir/default -maxdepth 1 -type l -printf '%f\n' 2>/dev/null | sort -u || echo ""
+                ;;
+            dinit)
+                [[ -d /etc/dinit.d/boot.d ]] && find /etc/dinit.d/boot.d -maxdepth 1 -type l -printf '%f\n' 2>/dev/null | sort -u || echo ""
+                ;;
+            s6)
+                sh -c 's6-rc-db list bundle default 2>/dev/null || s6-rc-db list services 2>/dev/null' 2>/dev/null || echo ""
+                ;;
+            systemd)
+                systemctl list-unit-files --state=enabled 2>/dev/null | awk '/\.service/ {gsub(/\.service$/, "", $1); print $1}' | sort -u || echo ""
+                ;;
             *)      echo "" ;;
         esac
     fi
@@ -301,7 +392,6 @@ detect_custom_services() {
     local svc
     while IFS= read -r svc; do
         [[ -z "$svc" ]] && continue
-        # Skip known services that might be misdetected
         for known in "${known_services[@]}"; do
             [[ "$svc" == "$known" ]] && continue 2
         done
@@ -497,7 +587,8 @@ update_bootloader() {
 cold_reboot() {
     log_info "Init has been swapped — performing cold reboot via SysRq..."
     sync
-    mount "${MIG_ROOT}/" -o remount,ro 2>/dev/null || true
+    local remount_target="${MIG_ROOT:-/}"
+    mount "$remount_target" -o remount,ro 2>/dev/null || true
     echo s >| /proc/sysrq-trigger 2>/dev/null || true
     echo u >| /proc/sysrq-trigger 2>/dev/null || true
     echo b >| /proc/sysrq-trigger 2>/dev/null || true
@@ -688,15 +779,5 @@ tui_init_migration_menu() {
         "openrc" "runit" "dinit" "s6") || return 1
     [[ "$source_init" != "$target_init" ]] || die "Source and target are the same."
 
-    local script="${MIGRATIONS_DIR}/inits/${source_init}-to-${target_init}.sh"
-    if [[ -f "$script" ]]; then
-        source "$script"
-    else
-        log_info "No direct script for $source_init → $target_init – chaining through $HUB_INIT"
-        local step1="${MIGRATIONS_DIR}/inits/${source_init}-to-${HUB_INIT}.sh"
-        local step2="${MIGRATIONS_DIR}/inits/${HUB_INIT}-to-${target_init}.sh"
-        [[ -f "$step1" ]] && { log_info "Running: $source_init → $HUB_INIT"; source "$step1"; }
-        [[ -f "$step2" ]] && { log_info "Running: $HUB_INIT → $target_init"; source "$step2"; }
-    fi
-    log_info "Init migration complete. Please reboot."
+    run_init_migration "${source_init}" "${target_init}"
 }

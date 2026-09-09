@@ -22,14 +22,14 @@ enable_service() {
     esac
     
     if ! service_exists "${svc}"; then
-        log_warn "Service not found for ${init}: ${svc}"
+        warn_collect "Service not found for ${init}: ${svc}"
         return 1
     fi
     case "${init}" in
         openrc) rc-update add "${svc}" default ;;
         runit)  mkdir -p /etc/runit/runsvdir/default ; ln -sf "/etc/runit/sv/${svc}" "/etc/runit/runsvdir/default/${svc}" ;;
         dinit)  mkdir -p /etc/dinit.d/boot.d ; ln -sf "../${svc}" "/etc/dinit.d/boot.d/${svc}" ;;
-        s6)     s6-rc-bundle-update add default "${svc}" 2>/dev/null || true ;;
+        s6)     s6-rc-bundle-update add default "${svc}" 2>/dev/null || warn_collect "Failed to enable ${svc} for s6" ;;
     esac
 }
 
@@ -41,21 +41,21 @@ enable_service_boot() {
     esac
     
     if ! service_exists "${svc}"; then
-        log_warn "Service not found for ${init}: ${svc}"
+        warn_collect "Service not found for ${init}: ${svc}"
         return 1
     fi
     case "${init}" in
         openrc) rc-update add "${svc}" boot ;;
         runit)  mkdir -p /etc/runit/runsvdir/boot ; ln -sf "/etc/runit/sv/${svc}" "/etc/runit/runsvdir/boot/${svc}" ;;
         dinit)  mkdir -p /etc/dinit.d/boot.d ; ln -sf "../${svc}" "/etc/dinit.d/boot.d/${svc}" ;;
-        s6)     s6-rc-bundle-update add boot "${svc}" 2>/dev/null || true ;;
+        s6)     s6-rc-bundle-update add boot "${svc}" 2>/dev/null || warn_collect "Failed to enable ${svc} for s6 boot" ;;
     esac
 }
 
 start_service() {
     local svc="${1}" init="${INIT:-openrc}"
     if ! service_exists "${svc}"; then
-        log_warn "Service not found for ${init}: ${svc}"
+        warn_collect "Service not found for ${init}: ${svc}"
         return 1
     fi
     case "${init}" in

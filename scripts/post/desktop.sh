@@ -1,29 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-install_sonicde() {
-    log_info "Setting up SonicDE repository..."
-    
-    sed -i '/^\[sonicde\]/,/^\[/d' /etc/pacman.conf
-    
-    cat <<'EOF' >> /etc/pacman.conf
-[sonicde]
-Server = https://sonicde-artix.github.io/$arch
-EOF
-
-    log_info "Importing SonicDE signing key..."
-    curl -sL https://sonicde-artix.github.io/sonicde-artixlinux.asc -o /tmp/sonicde.asc
-    pacman-key --add /tmp/sonicde.asc
-    pacman-key --finger 72AAA51726BC3C29
-    pacman-key --lsign-key 72AAA51726BC3C29
-    rm -f /tmp/sonicde.asc
-    
-    pacman -Syy --noconfirm
-    yes | pacman -S --needed sonicde-meta 2>/dev/null || true
-    
-    log_info "SonicDE repository configured with proper signature verification."
-}
-
 install_mango() {
     log_info "Setting up Chaotic-AUR for MangoWM..."
     export GNUPGHOME="/etc/pacman.d/gnupg"
@@ -79,137 +56,143 @@ install_vxwm_source() {
     log_info "vxwm installed successfully."
 }
 
-install_desktop() {
-    local wm_de init display_manager kde_profile
+_desktop_packages_for() {
+    local de="${1}" init="${2}" display_manager="${3}"
     local -a pkgs=()
 
-    wm_de="$(printf '%s' "${WM_DE:-none}" | tr -d '[:space:]')"
+    case "${de}" in
+        xfce4)    pkgs=(xfce4 xfce4-goodies) ;;
+        lxqt)     pkgs=(lxqt) ;;
+        lxde)     pkgs=(lxde lxappearance) ;;
+        i3wm)     pkgs=(i3-wm i3status i3lock dmenu xterm) ;;
+        dwm)      pkgs=(dwm dmenu xterm) ;;
+        icewm)    pkgs=(icewm icewm-themes xterm) ;;
+        kde)
+            local kde_profile
+            kde_profile="$(state_get KDE_PROFILE desktop)"
+            case "${kde_profile}" in
+                minimal)       pkgs=(plasma-desktop dolphin konsole xdg-desktop-portal-kde) ;;
+                full|edge)     pkgs=(plasma kde-applications xdg-desktop-portal-kde) ;;
+                desktop|*)     pkgs=(plasma xdg-desktop-portal-kde) ;;
+            esac
+            if [[ "${display_manager}" == "lightdm" ]]; then
+                pkgs+=(lightdm lightdm-gtk-greeter "lightdm-${init}")
+            fi
+            ;;
+        hyprland) pkgs=(hyprland foot waybar wofi xdg-desktop-portal-hyprland seatd "seatd-${init}") ;;
+        niri)     pkgs=(niri foot waybar fuzzel xdg-desktop-portal-gtk seatd "seatd-${init}") ;;
+        sway)     pkgs=(sway swaybg swaylock swayidle foot waybar wofi xdg-desktop-portal-wlr seatd "seatd-${init}") ;;
+        cinnamon) pkgs=(cinnamon lightdm lightdm-gtk-greeter "lightdm-${init}" xdg-desktop-portal-gtk) ;;
+        budgie)   pkgs=(budgie-desktop budgie-screensaver budgie-control-center lightdm lightdm-gtk-greeter "lightdm-${init}" xdg-desktop-portal-gtk) ;;
+        moksha)   pkgs=(moksha terminology lightdm lightdm-gtk-greeter "lightdm-${init}") ;;
+        cosmic)   pkgs=(cosmic cosmic-terminal cosmic-text-editor cosmic-files cosmic-settings cosmic-launcher lightdm lightdm-gtk-greeter "lightdm-${init}") ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    printf '%s\n' "${pkgs[@]}"
+}
+
+install_desktop() {
+    local init display_manager
+    local -a unique_des=()
+    local de
+
     init="$(printf '%s' "${INIT:-openrc}" | tr -d '[:space:]')"
     display_manager="$(printf '%s' "${DISPLAY_MANAGER:-none}" | tr -d '[:space:]')"
-    kde_profile='none'
 
     export USER_NAME="${USER_1_NAME:-${USER_NAME:-artix}}"
 
-    if [[ "${wm_de}" == 'kde' ]]; then
-        kde_profile="$(state_get KDE_PROFILE desktop)"
+    local system_de
+    system_de="$(printf '%s' "${WM_DE:-none}" | tr -d '[:space:]')"
+    [[ "${system_de}" != "none" ]] && unique_des+=("${system_de}")
+
+    local user_count
+    user_count="$(state_get USER_COUNT 0)"
+    for ((i=1; i<=user_count; i++)); do
+        de="$(state_get "USER_${i}_DE" "")"
+        [[ -n "${de}" && "${de}" != "none" ]] && unique_des+=("${de}")
+    done
+
+    unique_des=($(printf '%s\n' "${unique_des[@]}" | sort -u))
+
+    if [[ ${#unique_des[@]} -eq 0 ]]; then
+        log_info "No desktop environments requested."
+        return 0
     fi
 
     log_info "Verifying dbus service..."
     service_exists dbus || { log_error "dbus service missing for init: ${init}"; return 1; }
     enable_service dbus
 
-    case "${wm_de}" in
-        xfce4)    pkgs+=(xfce4 xfce4-goodies) ;;
-        lxqt)     pkgs+=(lxqt) ;;
-        lxde)     pkgs+=(lxde lxappearance) ;;
-        i3wm)     pkgs+=(i3-wm i3status i3lock dmenu xterm) ;;
-        vxwm)     pkgs+=(base-devel git libx11 libxft libxinerama freetype2 xorg-server xorg-xinit xterm) ;;
-        dwm)      pkgs+=(dwm dmenu xterm) ;;
-        icewm)    pkgs+=(icewm icewm-themes xterm) ;;
-        none)     return 0 ;;
+    local needs_seatd=0
+    for de in "${unique_des[@]}"; do
+        case "${de}" in
+            hyprland|mango|niri|sway|cosmic) needs_seatd=1 ;;
+        esac
+    done
 
-        sonicde)
-            install_sonicde
-            pkgs+=(sonicde-meta)
-            if [[ "${display_manager}" == "sddm" ]]; then
-                display_manager="soniclogin"
-            fi
-            ;;
-
-        kde)
-            case "${kde_profile}" in
-                minimal)       pkgs+=(plasma-desktop dolphin konsole xdg-desktop-portal-kde) ;;
-                full|edge)     pkgs+=(plasma kde-applications xdg-desktop-portal-kde) ;;
-                desktop|*)     pkgs+=(plasma xdg-desktop-portal-kde) ;;
-            esac
-
-            if [[ "${display_manager}" == "lightdm" ]]; then
-                pkgs+=(lightdm lightdm-gtk-greeter "lightdm-${init}")
-            fi
-
-            if [[ "${x_stack:-xorg}" == 'xlibre' ]]; then
-                pkgs+=(xlibre-input-wacom)
-            fi
-            ;;
-
-        hyprland)
-            pkgs+=(hyprland foot waybar wofi xdg-desktop-portal-hyprland seatd "seatd-${init}") ;;
-
-        niri)
-            pkgs+=(niri foot waybar fuzzel xdg-desktop-portal-gtk seatd "seatd-${init}") ;;
-
-        sway)
-            pkgs+=(sway swaybg swaylock swayidle foot waybar wofi xdg-desktop-portal-wlr seatd "seatd-${init}") ;;
-
-        mango)
-            install_mango
-            pkgs+=(foot waybar wofi xdg-desktop-portal-hyprland seatd "seatd-${init}" base-devel git cjson xorg-xwayland)
-            ;;
-
-        cinnamon)
-            pkgs+=(cinnamon lightdm lightdm-gtk-greeter "lightdm-${init}" xdg-desktop-portal-gtk)
-            ;;
-
-        budgie)
-            pkgs+=(budgie-desktop budgie-screensaver budgie-control-center lightdm lightdm-gtk-greeter "lightdm-${init}" xdg-desktop-portal-gtk)
-            ;;
-
-        moksha)
-            pkgs+=(moksha enlightenment terminology lightdm lightdm-gtk-greeter "lightdm-${init}")
-            ;;
-
-        cosmic)
-            pkgs+=(cosmic cosmic-terminal cosmic-text-editor cosmic-files cosmic-settings cosmic-launcher lightdm lightdm-gtk-greeter "lightdm-${init}")
-            log_warn "COSMIC is alpha software — expect bugs and missing features"
-            ;;
-    esac
+    local -a all_pkgs=()
+    for de in "${unique_des[@]}"; do
+        local -a de_pkgs=()
+        case "${de}" in
+            mango)
+                install_mango || return 1
+                de_pkgs=(foot waybar wofi xdg-desktop-portal-hyprland seatd "seatd-${init}" base-devel git cjson xorg-xwayland)
+                ;;
+            vxwm)
+                de_pkgs=(base-devel git libx11 libxft libxinerama freetype2 xorg-server xorg-xinit xterm)
+                ;;
+            *)
+                de_pkgs=($(_desktop_packages_for "${de}" "${init}" "${display_manager}"))
+                ;;
+        esac
+        all_pkgs+=("${de_pkgs[@]}")
+    done
 
     case "${display_manager}" in
-        lightdm)
-            if [[ "${wm_de}" != "kde" ]]; then
-                pkgs+=(lightdm lightdm-gtk-greeter "lightdm-${init}")
-            fi
-            ;;
-        soniclogin)
-            pkgs+=(sonic-login-manager "sonic-login-manager-${init}")
-            ;;
-        sddm)    pkgs+=(sddm "sddm-${init}") ;;
+        lightdm) all_pkgs+=(lightdm lightdm-gtk-greeter "lightdm-${init}") ;;
+        sddm)    all_pkgs+=(sddm "sddm-${init}") ;;
     esac
 
-    log_info "Installing desktop environment..."
+    all_pkgs=($(printf '%s\n' "${all_pkgs[@]}" | sort -u))
+
+    log_info "Installing desktop environments..."
     log_info "Desktop package list:"
-    printf ' - %s\n' "${pkgs[@]}"
+    printf ' - %s\n' "${all_pkgs[@]}"
     clean_pacman_lock
-    if ! retry_command "desktop install" pacman -S --noconfirm --needed "${pkgs[@]}"; then
+    if ! retry_command "desktop install" pacman -S --noconfirm --needed "${all_pkgs[@]}"; then
         log_error "Failed to install desktop packages."
         return 1
     fi
 
-    if [[ "${wm_de}" == 'mango' ]]; then
-        install_mango_aur
-    fi
+    for de in "${unique_des[@]}"; do
+        case "${de}" in
+            mango) install_mango_aur ;;
+            vxwm) install_vxwm_source ;;
+        esac
+    done
 
-    if [[ "${wm_de}" == 'vxwm' ]]; then
-        install_vxwm_source
-    fi
-
-    if [[ "${wm_de}" == "kde" && "${display_manager}" == "lightdm" ]]; then
+    local has_kde=0
+    for de in "${unique_des[@]}"; do
+        [[ "${de}" == "kde" ]] && has_kde=1
+    done
+    if [[ ${has_kde} -eq 1 && "${display_manager}" == "lightdm" ]]; then
         log_info "Replacing SDDM with LightDM..."
         pacman -Rdd --noconfirm sddm "sddm-${init}" 2>/dev/null || true
     fi
 
     case "${display_manager}" in
-        lightdm)     enable_service lightdm || log_warn "Failed to enable LightDM" ;;
-        soniclogin)  enable_service soniclogin || log_warn "Failed to enable Sonic Login Manager" ;;
-        sddm)        enable_service sddm || log_warn "Failed to enable SDDM" ;;
+        lightdm) enable_service lightdm || log_warn "Failed to enable LightDM" ;;
+        sddm)    enable_service sddm || log_warn "Failed to enable SDDM" ;;
     esac
 
-    case "${wm_de}" in
-        hyprland|mango|niri|sway|cosmic)
-            log_info "Verifying seatd service..."
-            service_exists seatd || { log_error "seatd service missing for init: ${init}"; return 1; }
-            enable_service seatd || log_warn "Failed to enable seatd" ;;
-    esac
+    if [[ ${needs_seatd} -eq 1 ]]; then
+        log_info "Verifying seatd service..."
+        service_exists seatd || { log_error "seatd service missing for init: ${init}"; return 1; }
+        enable_service seatd || log_warn "Failed to enable seatd"
+    fi
 
     log_info "Desktop installation complete."
 }

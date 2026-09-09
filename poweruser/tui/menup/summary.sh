@@ -19,8 +19,11 @@ tui_poweruser_pre_summary() {
     local -a pkgs
     read -ra pkgs <<< "$(state_get POWERUSER_PACKAGES)"
     for pkg in "${pkgs[@]}"; do
-        local features
-        features="$(state_get "POWERUSER_FEATURES_${pkg//-/_}" "")"
+        local flag_file="${POWERUSER_DIR}/package.use/${pkg}"
+        local features=""
+        if [[ -f "${flag_file}" ]]; then
+            features=$(grep -v '^#' "${flag_file}" | grep -v '^-' | tr '\n' ' ')
+        fi
         if [[ -n "${features}" ]]; then
             summary+="  ${pkg} [${features}]"$'\n'
         else

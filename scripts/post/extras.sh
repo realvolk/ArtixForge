@@ -60,11 +60,13 @@ install_extras() {
     mapfile -t deduped < <(printf '%s\n' "${pkgs[@]}" | sort -u)
 
     log_info "Installing extras..."
-    pacman -S --noconfirm --needed "${deduped[@]}"
+    if ! retry_command "extras install" pacman -S --noconfirm --needed "${deduped[@]}"; then
+        log_warn "Some extras failed to install — continuing with what succeeded"
+    fi
 
-    [[ "${selected}" == *" firewalld "* ]] && enable_service firewalld
-    [[ "${selected}" == *" bluez "* ]] && enable_service bluetoothd
-    [[ "${selected}" == *" zram-tools "* ]] && enable_service zramen
+    [[ "${selected}" == *" firewalld "* ]] && enable_service firewalld || warn_collect "firewalld service could not be enabled"
+    [[ "${selected}" == *" bluez "* ]] && enable_service bluetoothd || warn_collect "bluetoothd service could not be enabled"
+    [[ "${selected}" == *" zram-tools "* ]] && enable_service zramen || warn_collect "zramen service could not be enabled"
 
     if [[ "${selected}" == *" rsvc "* && "${init}" == 'runit' ]]; then
         log_info "Installing rsvc..."

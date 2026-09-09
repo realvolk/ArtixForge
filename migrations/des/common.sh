@@ -2,18 +2,90 @@
 set -Eeuo pipefail
 
 MIG_ROOT=""
-if [[ -d /run/artix/sfs/rootfs ]]; then
-    if ! mountpoint -q /mnt; then
-        tui_msg "Live ISO Detected" "Migration from live ISO requires the target system mounted at /mnt."
-        if tui_yesno "Mount Target" "Would you like to mount it now?"; then
-            recovery_mount_all
-        else
-            tui_msg_quick "Migration Cancelled" "Mount the target system at /mnt and retry."
-            exit 1
+
+_verify_migration_root() {
+    local root="${1}"
+    [[ -d "${root}" ]] || return 1
+    [[ -f "${root}/etc/os-release" ]] || return 1
+    [[ -x "${root}/usr/bin/pacman" ]] || return 1
+    [[ -d "${root}/var/lib/pacman" ]] || return 1
+    return 0
+}
+
+_verify_running_system() {
+    [[ -f /etc/os-release ]] || return 1
+    [[ -x /usr/bin/pacman ]] || return 1
+    [[ -d /var/lib/pacman ]] || return 1
+    return 0
+}
+
+ensure_migration_root() {
+    local persisted_root
+    persisted_root="$(state_get MIG_ROOT "")"
+
+    if [[ -n "${persisted_root}" ]]; then
+        if _verify_migration_root "${persisted_root}"; then
+            MIG_ROOT="${persisted_root}"
+            export MIG_ROOT
+            log_info "Migration target (resumed): ${MIG_ROOT}"
+            return 0
         fi
+        log_warn "Persisted migration root ${persisted_root} is no longer valid."
     fi
-    MIG_ROOT="/mnt"
-fi
+
+    local on_live_iso=false
+    [[ -d /run/artix/sfs/rootfs ]] && on_live_iso=true
+    [[ -f /run/artix/live ]] && on_live_iso=true
+
+    if [[ "${on_live_iso}" == true ]]; then
+        tui_msg "Live ISO Detected" "Migration requires the target system to be mounted."
+        local mount_choice
+        mount_choice=$(tui_menu "Target Selection" "How do you want to locate the target system?" \
+            "Auto-mount (LUKS/LVM/plain)" \
+            "Use /mnt (already mounted)" \
+            "Specify mount point") || { tui_msg_quick "Cancelled" "Migration cancelled."; exit 0; }
+
+        case "${mount_choice}" in
+            "Auto-mount"*)
+                recovery_mount_all || { tui_msg_quick "Mount Failed" "Could not mount target system."; exit 1; }
+                MIG_ROOT="/mnt"
+                ;;
+            "Use /mnt"*)
+                _verify_migration_root "/mnt" || { tui_msg "Invalid Target" "/mnt is not a valid Artix installation."; exit 1; }
+                MIG_ROOT="/mnt"
+                ;;
+            "Specify"*)
+                MIG_ROOT=$(tui_input "Mount Point" "Enter the mount point of the target system:" "/mnt") || exit 1
+                [[ -n "${MIG_ROOT}" ]] || exit 1
+                _verify_migration_root "${MIG_ROOT}" || { tui_msg "Invalid Target" "${MIG_ROOT} is not a valid Artix installation."; exit 1; }
+                ;;
+        esac
+    else
+        local choice
+        choice=$(tui_menu "Migration Target" "Which system do you want to migrate?" \
+            "This running system" \
+            "A mounted installation") || { tui_msg_quick "Cancelled" "Migration cancelled."; exit 0; }
+
+        case "${choice}" in
+            "This running"*)
+                MIG_ROOT=""
+                _verify_running_system || { tui_msg "Invalid System" "This does not appear to be a valid Artix installation."; exit 1; }
+                ;;
+            "A mounted"*)
+                MIG_ROOT=$(tui_input "Mount Point" "Enter the mount point of the target system:" "/mnt") || exit 1
+                [[ -n "${MIG_ROOT}" ]] || exit 1
+                _verify_migration_root "${MIG_ROOT}" || { tui_msg "Invalid Target" "${MIG_ROOT} is not a valid Artix installation."; exit 1; }
+                ;;
+        esac
+    fi
+
+    export MIG_ROOT
+    state_set MIG_ROOT "${MIG_ROOT}"
+    log_info "Migration target: ${MIG_ROOT:-running system}"
+}
+
+# Run immediately so MIG_ROOT is ready for all functions
+ensure_migration_root
 
 _chroot() {
     if [[ -n "${MIG_ROOT}" ]]; then
@@ -35,7 +107,6 @@ declare -A DE_PACKAGES
 DE_PACKAGES=(
     ["kde"]="plasma-desktop dolphin konsole kde-applications"
     ["kde-minimal"]="plasma-desktop dolphin konsole"
-    ["sonicde"]="sonicde-meta"
     ["xfce"]="xfce4 xfce4-goodies"
     ["lxqt"]="lxqt"
     ["lxde"]="lxde-common lxde"
@@ -57,7 +128,6 @@ DE_PACKAGES=(
 declare -A DE_DISPLAY_MANAGER
 DE_DISPLAY_MANAGER=(
     ["kde"]="sddm"
-    ["sonicde"]="soniclogin"
     ["xfce"]="lightdm"
     ["lxqt"]="sddm"
     ["lxde"]="lightdm"
@@ -86,10 +156,6 @@ DM_PACKAGES=(
     ["lightdm-runit"]="lightdm lightdm-gtk-greeter lightdm-runit"
     ["lightdm-dinit"]="lightdm lightdm-gtk-greeter lightdm-dinit"
     ["lightdm-s6"]="lightdm lightdm-gtk-greeter lightdm-s6"
-    ["soniclogin-openrc"]="sonic-login-manager sonic-login-manager-openrc"
-    ["soniclogin-runit"]="sonic-login-manager sonic-login-manager-runit"
-    ["soniclogin-dinit"]="sonic-login-manager sonic-login-manager-dinit"
-    ["soniclogin-s6"]="sonic-login-manager sonic-login-manager-s6"
 )
 
 declare -A AUDIO_PACKAGES
@@ -101,7 +167,6 @@ AUDIO_PACKAGES=(
 
 declare -A X_PACKAGES
 X_PACKAGES=(
-    ["xlibre"]="xlibre-xserver xlibre-xserver-common xlibre-input-libinput xlibre-input-evdev"
     ["xorg"]="xorg-server xorg-xinit xorg-xset xorg-xrandr xf86-input-libinput xf86-input-evdev"
     ["wayland"]=""
     ["none"]=""
@@ -166,29 +231,65 @@ detect_current_audio(){ detect_audio_stack >/dev/null 2>&1; state_get AUDIO_STAC
 detect_current_network(){ detect_network_stack >/dev/null 2>&1; state_get NETWORK_STACK none; }
 detect_current_init() { detect_init >/dev/null 2>&1; state_get INIT openrc; }
 
+_installed_de_packages() {
+    local de="$1"
+    local pattern=""
+    case "$de" in
+        kde)      pattern='^(plasma|plasma-|kwin|kde-|sddm|dolphin|konsole|kate|okular|gwenview|spectacle|discover|drkonqi|bluedevil|xdg-desktop-portal-kde)' ;;
+        xfce)     pattern='^(xfce4|xfce4-|xfdesktop|xfwm4|thunar|tumbler|ristretto|mousepad|orage)' ;;
+        lxqt)     pattern='^(lxqt|lxqt-|pcmanfm-qt|qterminal|sddm)' ;;
+        lxde)     pattern='^(lxde|lxde-|lxsession|pcmanfm)' ;;
+        hyprland) pattern='^(hyprland|hypr|xdg-desktop-portal-hyprland)' ;;
+        sway)     pattern='^(sway|swaybg|swaylock|swayidle|wofi|waybar)' ;;
+        niri)     pattern='^(niri|fuzzel)' ;;
+        i3wm)     pattern='^(i3-wm|i3status|i3lock|dmenu)' ;;
+        dwm)      pattern='^(dwm|dmenu)' ;;
+        vxwm)     pattern='^(vxwm)' ;;
+        icewm)    pattern='^(icewm|icewm-)' ;;
+        mango)    pattern='^(mangowm|mangowm-)' ;;
+        cinnamon) pattern='^(cinnamon|cinnamon-|muffin|nemo)' ;;
+        budgie)   pattern='^(budgie|budgie-|gnome-shell)' ;;
+        moksha)   pattern='^(moksha|enlightenment|terminology)' ;;
+        cosmic)   pattern='^(cosmic)' ;;
+        *)        return 0 ;;
+    esac
+
+    _chroot pacman -Qq 2>/dev/null | grep -E "${pattern}" || true
+}
+
 backup_de_config() {
     local backup_dir="${MIG_ROOT}/root/de-backup-$(date +%Y%m%d-%H%M%S)"
     mkdir -p "$backup_dir"
+
     for user_home in "${MIG_ROOT}"/home/*; do
         local user="${user_home##*/}"
         [[ -d "$user_home" ]] || continue
-        cp -a "$user_home/.config" "$backup_dir/$user-config" 2>/dev/null || true
-        cp -a "$user_home/.local"  "$backup_dir/$user-local"  2>/dev/null || true
-        cp -a "$user_home/.cache"  "$backup_dir/$user-cache"  2>/dev/null || true
+
+        if [[ -d "$user_home/.config" ]]; then
+            cp -a "$user_home/.config" "$backup_dir/$user-config" 2>/dev/null || true
+        fi
+        if [[ -d "$user_home/.local/share" ]]; then
+            mkdir -p "$backup_dir/$user-local"
+            cp -a "$user_home/.local/share" "$backup_dir/$user-local/share" 2>/dev/null || true
+        fi
     done
-    cp -a "${MIG_ROOT}/etc/sddm.conf.d"    "$backup_dir/sddm.conf.d"    2>/dev/null || true
-    cp -a "${MIG_ROOT}/etc/lightdm"        "$backup_dir/lightdm"        2>/dev/null || true
-    cp -a "${MIG_ROOT}/etc/X11/xorg.conf.d" "$backup_dir/xorg.conf.d"   2>/dev/null || true
-    log_info "Configs backed up to $backup_dir"
+
+    [[ -d "${MIG_ROOT}/etc/sddm.conf.d" ]] && cp -a "${MIG_ROOT}/etc/sddm.conf.d" "$backup_dir/sddm.conf.d" 2>/dev/null || true
+    [[ -d "${MIG_ROOT}/etc/lightdm" ]] && cp -a "${MIG_ROOT}/etc/lightdm" "$backup_dir/lightdm" 2>/dev/null || true
+    [[ -d "${MIG_ROOT}/etc/X11/xorg.conf.d" ]] && cp -a "${MIG_ROOT}/etc/X11/xorg.conf.d" "$backup_dir/xorg.conf.d" 2>/dev/null || true
+
+    local backup_size
+    backup_size=$(du -sh "$backup_dir" 2>/dev/null | cut -f1 || echo "unknown")
+    log_info "Configs backed up to $backup_dir (${backup_size})"
 }
 
 remove_packages() {
     local pkgs="$1"
     [[ -n "$pkgs" ]] || return 0
     if [[ -n "${MIG_ROOT}" ]]; then
-        artix-chroot "${MIG_ROOT}" pacman -Rns --noconfirm $pkgs 2>/dev/null || true
+        artix-chroot "${MIG_ROOT}" pacman -Rdd --noconfirm $pkgs 2>/dev/null || true
     else
-        pacman -Rns --noconfirm $pkgs 2>/dev/null || true
+        pacman -Rdd --noconfirm $pkgs 2>/dev/null || true
     fi
 }
 
@@ -214,36 +315,6 @@ _enable_service() {
 _prepare_target_repo() {
     local de="${1}"
     case "${de}" in
-        sonicde)
-            log_info "Setting up SonicDE repository on target..."
-            if [[ -n "${MIG_ROOT}" ]]; then
-                artix-chroot "${MIG_ROOT}" bash -c "
-                    sed -i '/^\[sonicde\]/,/^\[/d' /etc/pacman.conf
-                    cat >> /etc/pacman.conf <<'REPO_EOF'
-[sonicde]
-Server = https://sonicde-artix.github.io/\$arch
-REPO_EOF
-                    curl -sL https://sonicde-artix.github.io/sonicde-artixlinux.asc -o /tmp/sonicde.asc
-                    pacman-key --add /tmp/sonicde.asc
-                    pacman-key --finger 72AAA51726BC3C29
-                    pacman-key --lsign-key 72AAA51726BC3C29
-                    rm -f /tmp/sonicde.asc
-                    pacman -Syy --noconfirm
-                " || log_warn "SonicDE repo setup failed"
-            else
-                sed -i '/^\[sonicde\]/,/^\[/d' /etc/pacman.conf
-                cat >> /etc/pacman.conf <<'REPO_EOF'
-[sonicde]
-Server = https://sonicde-artix.github.io/$arch
-REPO_EOF
-                curl -sL https://sonicde-artix.github.io/sonicde-artixlinux.asc -o /tmp/sonicde.asc
-                pacman-key --add /tmp/sonicde.asc
-                pacman-key --finger 72AAA51726BC3C29
-                pacman-key --lsign-key 72AAA51726BC3C29
-                rm -f /tmp/sonicde.asc
-                pacman -Syy --noconfirm
-            fi
-            ;;
         mango)
             log_info "Setting up Chaotic-AUR on target for MangoWM..."
             if [[ -n "${MIG_ROOT}" ]]; then
@@ -281,22 +352,6 @@ REPO_EOF
     esac
 }
 
-_cleanup_target_repo() {
-    local de="${1}"
-    case "${de}" in
-        sonicde)
-            log_info "Removing SonicDE repository — SigLevel = Never no longer needed"
-            if [[ -n "${MIG_ROOT}" ]]; then
-                artix-chroot "${MIG_ROOT}" sed -i '/^\[sonicde\]/,/^\[/d' /etc/pacman.conf
-                artix-chroot "${MIG_ROOT}" pacman -Syy --noconfirm 2>/dev/null || true
-            else
-                sed -i '/^\[sonicde\]/,/^\[/d' /etc/pacman.conf
-                pacman -Syy --noconfirm 2>/dev/null || true
-            fi
-            ;;
-    esac
-}
-
 _repair_pacman_db() {
     log_info "Checking target pacman database integrity..."
     
@@ -327,12 +382,11 @@ prompt_migration_choices() {
     local dm_choice x_choice audio_choice network_choice extras_choice
 
     dm_choice=$(tui_menu "Display Manager" "Current: $current_dm\nSelect display manager:" \
-        "Keep current ($current_dm)" "SDDM" "LightDM" "Sonic Login" "None") || dm_choice="Keep current"
+        "Keep current ($current_dm)" "SDDM" "LightDM" "None") || dm_choice="Keep current"
     dm_choice="${dm_choice,,}"
     case "$dm_choice" in
         "sddm") dm_choice="sddm" ;;
         "lightdm") dm_choice="lightdm" ;;
-        "sonic login") dm_choice="soniclogin" ;;
         "none") dm_choice="none" ;;
         "keep current"*) dm_choice="current" ;;
         *) dm_choice="current" ;;
@@ -340,10 +394,9 @@ prompt_migration_choices() {
     state_set DE_MIG_DM "${dm_choice}"
 
     x_choice=$(tui_menu "Display Stack" "Current: $current_x\nSelect display stack:" \
-        "Keep current ($current_x)" "xlibre" "xorg" "wayland") || x_choice="Keep current"
+        "Keep current ($current_x)" "xorg" "wayland") || x_choice="Keep current"
     x_choice="${x_choice,,}"
     case "$x_choice" in
-        "xlibre") x_choice="xlibre" ;;
         "xorg") x_choice="xorg" ;;
         "wayland") x_choice="wayland" ;;
         "keep current"*) x_choice="current" ;;
@@ -403,9 +456,7 @@ apply_migration_choices() {
     fi
 
     if [[ "$x_choice" != "current" ]]; then
-        if [[ "$x_choice" == "xlibre" ]]; then
-            remove_packages "xorg-server xf86-input-libinput xf86-input-evdev"
-        elif [[ "$x_choice" == "xorg" ]]; then
+        if [[ "$x_choice" == "xorg" ]]; then
             remove_packages "xlibre-xserver xlibre-xserver-common xlibre-input-libinput xlibre-input-evdev"
         fi
         install_packages "${X_PACKAGES[$x_choice]:-}"
@@ -469,6 +520,11 @@ detect_de_conflicts() {
 run_de_migration() {
     local source_de="${1}" target_de="${2}"
     [[ "$source_de" != "$target_de" ]] || die "Source and target DE are the same: $source_de"
+
+    if [[ "$source_de" == "sonicde" ]]; then
+        tui_msg "Unsupported Desktop" \
+            "SonicDE is no longer supported.\n\nYou can migrate away from it, but it cannot be installed or repaired."
+    fi
 
     local migration_stage_file="/tmp/artix-installer/migration-stage.conf"
     local migration_stage
@@ -539,7 +595,7 @@ You can:\n
     fi
 
     if [[ "${migration_stage}" == "backup" || "${migration_stage}" == "repos" ]]; then
-        if [[ "$target_de" == "sonicde" || "$target_de" == "mango" ]]; then
+        if [[ "$target_de" == "mango" ]]; then
             _prepare_target_repo "$target_de"
         fi
         echo "repos" > "${migration_stage_file}"
@@ -563,20 +619,44 @@ You can:\n
     if [[ "${migration_stage}" == "repos" || "${migration_stage}" == "backup" || "${migration_stage}" == "remove" ]]; then
         if [[ "$source_de" != "none" ]]; then
             log_info "Removing $source_de packages..."
-            remove_packages "${DE_PACKAGES[$source_de]:-}"
-            if [[ -n "${MIG_ROOT}" ]]; then
-                local orphan
-                orphan=$(artix-chroot "${MIG_ROOT}" pacman -Qtdq 2>/dev/null || true)
-                if [[ -n "$orphan" ]]; then
-                    log_info "Removing orphaned packages..."
-                    artix-chroot "${MIG_ROOT}" pacman -Rns --noconfirm $orphan 2>/dev/null || log_warn "Some orphans could not be removed"
+
+            local source_packages
+            if [[ "$source_de" == "sonicde" ]]; then
+                source_packages="sonicde-meta sonic-login-manager sonic-login-manager-openrc sonic-login-manager-runit sonic-login-manager-dinit sonic-login-manager-s6"
+                remove_packages "$source_packages"
+                if [[ -n "${MIG_ROOT}" ]]; then
+                    artix-chroot "${MIG_ROOT}" sed -i '/^\[sonicde\]/,/^\[/d' /etc/pacman.conf
+                    artix-chroot "${MIG_ROOT}" pacman -Syy --noconfirm 2>/dev/null || true
+                else
+                    sed -i '/^\[sonicde\]/,/^\[/d' /etc/pacman.conf
+                    pacman -Syy --noconfirm 2>/dev/null || true
                 fi
             else
-                local orphan
-                orphan=$(pacman -Qtdq 2>/dev/null || true)
-                if [[ -n "$orphan" ]]; then
-                    log_info "Removing orphaned packages..."
-                    pacman -Rns --noconfirm $orphan 2>/dev/null || log_warn "Some orphans could not be removed"
+                source_packages=$(_installed_de_packages "$source_de")
+                if [[ -n "$source_packages" ]]; then
+                    remove_packages "$source_packages"
+                else
+                    log_warn "No $source_de packages detected for removal."
+                fi
+            fi
+
+            local orphan_list
+            orphan_list=$(_chroot pacman -Qtdq 2>/dev/null || true)
+            if [[ -n "$orphan_list" ]]; then
+                local orphans_array=()
+                while IFS= read -r pkg; do
+                    [[ -n "$pkg" ]] && orphans_array+=("$pkg")
+                done <<< "$orphan_list"
+
+                tui_msg_quick "Orphaned Packages" "The following packages are now orphaned:\n\n${orphan_list}"
+
+                local to_remove
+                to_remove=$(tui_checklist "Remove Orphans" "Select orphaned packages to remove:" "${orphans_array[@]}") || true
+
+                if [[ -n "$to_remove" ]]; then
+                    remove_packages "$to_remove"
+                else
+                    log_info "No orphaned packages selected for removal."
                 fi
             fi
         fi
@@ -604,9 +684,6 @@ You can:\n
     fi
 
     if [[ "${migration_stage}" == "apply" || "${migration_stage}" == "finalize" ]]; then
-        if [[ "$target_de" == "sonicde" ]]; then
-            _cleanup_target_repo "$target_de"
-        fi
         if [[ -x "${MIG_ROOT}/usr/bin/mkinitcpio" ]]; then
             _chroot mkinitcpio -P 2>/dev/null || true
         fi
@@ -625,24 +702,20 @@ You can:\n
 }
 
 tui_de_migration_menu() {
-    local current_de source_de target_de
+    local current_de
     current_de=$(detect_current_de)
     tui_msg_quick "Current Desktop" "Detected desktop environment: ${current_de}"
 
+    local source_de target_de
     source_de=$(tui_menu "Source Desktop" "Select desktop to migrate FROM:" \
         "kde" "sonicde" "xfce" "lxqt" "lxde" "hyprland" "sway" "niri" \
         "i3wm" "dwm" "vxwm" "icewm" "mango" "none") || return 1
 
     target_de=$(tui_menu "Target Desktop" "Select desktop to migrate TO:" \
-        "kde" "sonicde" "xfce" "lxqt" "lxde" "hyprland" "sway" "niri" \
+        "kde" "xfce" "lxqt" "lxde" "hyprland" "sway" "niri" \
         "i3wm" "dwm" "vxwm" "icewm" "mango" "none") || return 1
 
     [[ "$source_de" != "$target_de" ]] || die "Source and target are the same."
 
-    local script="${MIGRATIONS_DIR}/des/${source_de}-to-${target_de}.sh"
-    if [[ -f "$script" ]]; then
-        source "$script"
-    else
-        run_de_migration "$source_de" "$target_de"
-    fi
+    run_de_migration "$source_de" "$target_de"
 }

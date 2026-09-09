@@ -26,7 +26,17 @@ Server = https://repo.parabola.nu/libre/os/x86_64
 EOF
         fi
         pkgs_ref+=(linux-libre linux-libre-headers)
-        log_warn "linux-libre removes non-free firmware/drivers. NVIDIA, Wi‑Fi, Bluetooth may stop working."
+        log_warn "linux-libre removes non-free firmware/drivers. NVIDIA, Wi-Fi, Bluetooth may stop working."
+    fi
+}
+
+_detect_cachyos_cpu_level() {
+    if grep -q avx512 /proc/cpuinfo 2>/dev/null; then
+        echo "x86-64-v4"
+    elif grep -q avx2 /proc/cpuinfo 2>/dev/null; then
+        echo "x86-64-v3"
+    else
+        echo "x86-64-v2"
     fi
 }
 
@@ -56,17 +66,8 @@ basestrap_kernel_cachyos() {
         }
 
         local cpu_level
-        cpu_level=$(/lib/ld-linux-x86-64.so.2 --help 2>/dev/null | grep -oP 'x86-64-v[2-4]' | head -n1 || true)
-
-        if [[ "${cpu_level}" == "x86-64-v4" ]]; then
-            local cpu_model vendor
-            cpu_model=$(grep -m1 'model' /proc/cpuinfo | awk '{print $3}')
-            vendor=$(grep -m1 'vendor_id' /proc/cpuinfo | awk '{print $3}')
-            if [[ "${vendor}" == "GenuineIntel" && "${cpu_model}" -ge 151 ]]; then
-                log_warn "Intel 12th gen+ detected — AVX-512 is fused off, using v3 instead of v4"
-                cpu_level="x86-64-v3"
-            fi
-        fi
+        cpu_level=$(_detect_cachyos_cpu_level)
+        log_info "Detected CPU level: ${cpu_level}"
 
         if [[ "${cpu_level}" == "x86-64-v4" ]]; then
             local v4_mirrorlist_pkg
@@ -101,6 +102,9 @@ EOF
                 }
             fi
             if [[ -f /etc/pacman.d/cachyos-v3-mirrorlist ]]; then
+                if ! grep -q '^Architecture =.*x86_64_v3' /etc/pacman.conf; then
+                    sed -i '/^\[options\]/a Architecture = x86_64 x86_64_v3' /etc/pacman.conf
+                fi
                 cat <<'EOF' >> /etc/pacman.conf
 [cachyos-v3]
 Include = /etc/pacman.d/cachyos-v3-mirrorlist
@@ -185,6 +189,10 @@ EOF
 
 basestrap_kernel_tkg() {
     local -n pkgs_ref="${1}"
+    if [[ "$(state_get TKG_BINARY no)" == "yes" ]]; then
+        log_info "TKG binary selected — no build dependencies needed"
+        return 0
+    fi
     log_info "Setting up TKG build dependencies..."
     pkgs_ref+=(bc cpio flex libelf pahole base-devel git dkms)
 }

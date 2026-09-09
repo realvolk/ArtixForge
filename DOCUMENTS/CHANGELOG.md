@@ -1,5 +1,101 @@
 # Changelog
 
+## v9.4.0.0 (2026-09-09) — ArtixForge
+
+### Added
+- **State file linting** — `lint_state` validates required keys, disk existence, filesystem/init/bootloader/privilege escalation/display stack values, and user/root password presence before pipeline
+- **State preset inheritance** — `state_load_preset` with one-level `BASE_STATE` support and relative path resolution
+- **State templating** — `state_resolve_templates` resolves `${KEY}` references via bash indirect expansion, no eval, max 10 iterations
+- **Encrypted state presets** — `state_encrypt_preset` and `state_decrypt_preset` with GPG AES256, magic header, passphrase via fd 3
+- **Per-user desktop environments** — `USER_${i}_DE` state key, persisted through state, applied with fallback to system `WM_DE`, seat group for Wayland
+- **Per-user dotfiles repositories** — `USER_${i}_DOTFILES` state key, `_clone_dotfiles` clones repo and installs configs
+- **Post-install script injection** — `POST_INSTALL_SCRIPT` validated before pipeline, copied to target, run in chroot
+- **One-shot post-install services** — `POST_INSTALL_ONESHOT` writes self-destructing per-init service that retries on failure
+- **Bug report generator** — `_generate_bug_report` collects logs, state, stage markers, system info into tarball on failure
+- **Advanced features gate** — `_verify_root_password` required for Recovery, Power User, Migration, ISO
+- **Migration target selection** — `ensure_migration_root` in both DE and init migrations, prompts for auto-mount/already-mounted/custom mount, validates target, persists `MIG_ROOT`
+- **DE migration dynamic package discovery** — `_installed_de_packages` queries installed packages by DE pattern
+- **DE migration user-visible orphan removal** — `tui_checklist` for orphaned packages
+- **ARM aarch64 support** — kernels, kernel config fragments, cross-compilation profiles, U-Boot bootloader, ARMtix repository
+- **Power User feature flag system** — `feature_depends_*`, `feature_conflicts_*`, `flag_desc_*`, per-package flags in `/etc/anvil/package.use/`, conflict detection
+- **Power User world file lifecycle** — `anvil world {status|add|remove|build|activate}`
+- **Power User package management** — `anvil files`, `anvil verify`, `anvil remove`, `anvil log`, `anvil diff`, `anvil rollback-recipe`
+- **Power User build infrastructure** — ccache, sub-packages, file inventory, build stats, parallel builds, isolated builds
+- **Power User kernel config fragments** — `kconfig_fragments.bash` replaces monolithic `kconfig.bash`
+- **Power User user patch stacks** — `/etc/anvil/patches/<pkgname>/`
+- **Power User recipe generation** — `anvil trial <url>`
+- **Power User garbage collection** — `anvil gc`
+- **Power User security audit** — `anvil audit [pkg]` with PIE/RELRO/stack protector checks
+- **Power User build estimate** — `anvil estimate`
+- **Power User full-system bootstrap** — `anvil bootstrap [dir]`
+- **Power User interactive build shell** — `anvil shell <pkg>`
+- **Power User TKG binary kernel** — `basestrap_install_tkg_binary` downloads prebuilt TKG from GitHub releases
+- **Power User TKG config generation** — `_tkg_write_config` writes `customization.cfg` from state keys
+- **Installation preset saving** — save configuration as reusable preset after successful install
+- **Post-install validation** — finalize stage runs recovery health checks before unmounting
+- **Warnings collector** — `warn_collect` aggregates non-fatal warnings for final report
+
+### Changed
+- **License changed to IRX License 1.0** — replaced Forge Attribution License 1.0
+- **GUI removed** — no `DISPLAY`/`WAYLAND_DISPLAY` check, no `--non-interactive` flag, TUI-only
+- **SonicDE removed as target** — removed from DE arrays, TUI choices, ISO lists; detection preserved for migration away
+- **xlibre removed as target** — removed from X_PACKAGES, TUI choices, ISO common.yaml, drivers; xorg only; detection preserved
+- **Display stack simplified** — X.Org only
+- **Quick Profiles rewritten** — Base, Plasma, XFCE, Cinnamon, LXQt, Community GTK, Community Qt, Gaming, Server, Minimal
+- **DE migration `remove_packages`** — switched to `pacman -Rdd`, no dependency cascade
+- **DE migration backup selective** — never copies `.cache` or `.local/cache`
+- **Init migration service listing fixed** — dinit/runit/s6/systemd listing corrected
+- **Init migration service mapping expanded** — `logind` → `elogind` in all tables, bare systemd names
+- **Init migration `cold_reboot` fixed** — uses `${MIG_ROOT:-/}`
+- **ATA backup selective** — rsync with excludes for caches, build dirs, container storage
+- **ATA user service detection per-user** — iterates all users, not just root
+- **ATA homed migration uses saved list** — reads `/tmp/ata-homed.txt`
+- **ATA desktop detection lookup table** — associative array replaces elif chain
+- **ATA `has_homed` persisted** — `ATA_HAS_HOMED` state key
+- **ATA network credentials use actual interface** — queries `ip link`
+- **ATA timer conversion fetches config once** — `systemctl cat` once per timer
+- **ATA resolv.conf detection checks active systemd-resolved**
+- **State migration keys persisted** — all migration and post-install keys in `state_save`
+- **Multi-DE installation** — collects unique DEs from system and per-user keys, installs all in one transaction
+- **CachyOS CPU detection by flags** — `/proc/cpuinfo` AVX2/AVX512 replaces ld-linux parsing
+- **GRUB LVM modules array** — `--modules "part_gpt part_msdos fat lvm dm-mod ext2"`, `--removable`
+- **Services soft-fail** — `enable_service` and `enable_service_boot` use `warn_collect` instead of error
+- **Swap configuration expanded** — `none`, `partition`, `swapfile`, `zram`, `zswap`
+- **BTRFS mount optimized** — `mount -o remount` instead of unmount/remount
+- **Power User engine overhauled** — feature flags, world file, ccache, sub-packages, file inventory, stats
+- **Power User profiles add GLOBAL_FEATURES** — default/safe/performance/hardened each declare feature defaults
+- **anvil CLI expanded** — 30+ subcommands
+
+### Removed
+- **GUI backend** — `forge-gui`, `--non-interactive`, `scripts/noninteractive.sh`
+- **SonicDE install path** — repo setup, DM install, service enable
+- **xlibre install path** — all xlibre package references
+- **`_cleanup_target_repo` in DE migration** — inline SonicDE cleanup only
+- **`poweruser/lib/kconfig.bash`** — replaced by `kconfig_fragments.bash`
+
+### Fixed
+- **KDE→XFCE regression** — dynamic package discovery + `-Rdd` + selective backup
+- **`install` bug report syntax error**
+- **SonicDE and xlibre removed from migration targets** — detection preserved
+- **Service listing per-init quirks** — dinit sed corruption, runit symlink filtering, s6 bundle listing
+- **`cold_reboot` trailing slash**
+- **ATA backup disk exhaustion** — caches no longer copied
+- **ATA user services only root queried**
+- **ATA homed detection after homectl removal**
+- **ATA desktop detection false negatives**
+- **ATA resume losing `has_homed`**
+- **ATA hardcoded wireless interface**
+- **ATA timer conversion subprocess explosion**
+- **ATA systemd-resolved active but not symlink**
+- **State migration keys dropped on save**
+- **Duplicate lightdm packages in DE install**
+- **GRUB LVM argument splitting**
+- **Services hard-failing on missing init packages**
+- **CachyOS v4 false positive on Intel 12th gen+**
+- **Architecture header missing on target pacman.conf for CachyOS v3/v4**
+
+####  artist
+
 ## v9.2.4.2 (2026-06-26) — ArtixForge
 
 ### Fixed
@@ -684,19 +780,19 @@ Many, many things changed. this changelog is incomplete for it's scope.
 ## v8.8.2.0 (2026-06-18) — ArtixForge
 
 ### Added
-- GUI: non‑interactive backend now supports Recovery, Migration, ISO, and Power User modes — GUI config flows drive the full pipeline
+- GUI: non-interactive backend now supports Recovery, Migration, ISO, and Power User modes — GUI config flows drive the full pipeline
 - GUI: password confirmation enforced — mismatched passwords block navigation with warning dialog
 
 ### Changed
 - GUI: filesystem list updated — exFAT and ZFS removed to match TUI
 - GUI: `save_state()` no longer uses `sudo` — installer already runs as root
-- Non‑interactive: `tui_password_confirm` reads passwords from state — GUI‑saved credentials used correctly
-- Non‑interactive: `tui_password` handles LUKS prompts from saved state
+- Non-interactive: `tui_password_confirm` reads passwords from state — GUI-saved credentials used correctly
+- Non-interactive: `tui_password` handles LUKS prompts from saved state
 
 ### Fixed
-- Non‑interactive: recovery mode reads `RECOVERY_ACTION` from state and executes the correct repair
-- Non‑interactive: migration mode reads `MIGRATION_SRC`/`MIGRATION_TGT` from state and runs the correct migration
-- Non‑interactive: ISO mode reads profile/init/kernel from state and builds with `build_artix_iso`
+- Non-interactive: recovery mode reads `RECOVERY_ACTION` from state and executes the correct repair
+- Non-interactive: migration mode reads `MIGRATION_SRC`/`MIGRATION_TGT` from state and runs the correct migration
+- Non-interactive: ISO mode reads profile/init/kernel from state and builds with `build_artix_iso`
 - Power User: interactive `tui_poweruser_config` skipped when `GUI_MODE=yes` — GUI config used instead
 
 ## v8.8.1.8 (2026-06-18) — ArtixForge
@@ -1008,8 +1104,8 @@ The next few patches will include GUI upgrades.
 ## v8.6.4.2 (2026-06-12) — ArtixForge
 
 ### Changed
-- TKG: kernel now compiled automatically during installation instead of requiring manual post‑install build
-- TKG: uses TKG's own `_tkg_srcprep` + `make` with a non‑interactive customization.cfg (BORE scheduler, running‑kernel config, GCC)
+- TKG: kernel now compiled automatically during installation instead of requiring manual post-install build
+- TKG: uses TKG's own `_tkg_srcprep` + `make` with a non-interactive customization.cfg (BORE scheduler, running-kernel config, GCC)
 - TKG: built kernel and modules copied to `/mnt` automatically; target initramfs regenerated
 
 ## v8.6.4.1 (2026-06-12) — ArtixForge
@@ -1086,12 +1182,12 @@ The next few patches will include GUI upgrades.
 - GUI: `extras_checkboxes` string corruption bug — state collection now reads directly from widget tree
 - GUI: `state.conf` not saving — `save_state()` now writes via sudo with temp file shredding
 - GUI: installer not launching from GUI — fixed path resolution for `install` script
-- GUI: `state_load` never called in non‑interactive mode — installer now loads state before pipeline
-- GUI: `&&`/`||` logic error in non‑interactive auto/manual causing false `power user stage failed` — replaced with `|| true`
+- GUI: `state_load` never called in non-interactive mode — installer now loads state before pipeline
+- GUI: `&&`/`||` logic error in non-interactive auto/manual causing false `power user stage failed` — replaced with `|| true`
 - GUI: `GUI_MODE` flag not set — `collect_state_common()` now sets `GUI_MODE="yes"`
 - GUI: `MODE` key not set — all modes now set `MODE` in state
 - GUI: mode selection dialog added at startup
-- GUI: LUKS and BTRFS sub‑boxes now properly hidden using `set_no_show_all(True)`
+- GUI: LUKS and BTRFS sub-boxes now properly hidden using `set_no_show_all(True)`
 - GUI: `poweruser_box` visibility fixed with `show_all()`/`hide()` toggles
 - GUI: `ResumeWindow` missing `start_installation()` override
 - GUI: ANSI escape codes stripped from progress log output
@@ -1106,12 +1202,12 @@ The next few patches will include GUI upgrades.
 ### Changed
 - GUI: all mode windows now follow same pattern: `collect_state()` → `save_state()` → `./install --non-interactive`
 - ISO: `offline.sh` now reads package list from `packages.x86_64` generated by user config instead of hardcoded array
-- ISO: `build.sh` adds first‑boot setup script for non‑repo packages (MangoWM, vxwm, bazzite, tkg)
+- ISO: `build.sh` adds first-boot setup script for non-repo packages (MangoWM, vxwm, bazzite, tkg)
 - ISO: `tui.sh` extra packages checklist fixed — removed broken `"off"` state strings, uses `tr '\n' ' '`
 - ISO: offline mode now calls `tui_collect_install_config` to let user configure target system packages for bundling
 
 ### Removed
-- ISO: hardcoded package list in `offline.sh` — replaced with state‑driven `packages.x86_64`
+- ISO: hardcoded package list in `offline.sh` — replaced with state-driven `packages.x86_64`
 - GUI: custom Bash command construction in `recovery.py`, `iso.py`, `migration.py`
 
 ## v8.6.0.0 (2026-06-06) — ArtixForge
@@ -1121,33 +1217,33 @@ The next few patches will include GUI upgrades.
 - GUI installer: theme preview (Gentoo, Artix, Jet Black, Mono, Retro) with live CSS colour updating
 - GUI installer: LUKS passphrase entry with confirmation and conditional visibility
 - GUI installer: BTRFS layout selector (standard/flat/snapshot) shown only when btrfs filesystem selected
-- GUI installer: Power User mode sub‑page with coreutils selection, fallback kernel toggle, and package checklist
+- GUI installer: Power User mode sub-page with coreutils selection, fallback kernel toggle, and package checklist
 - GUI installer: Arch repositories and offline mode toggles
 - GUI installer: user and root password fields with visibility hiding
 - GUI installer: summary page with sanity warnings for dangerous combinations (ZFS, glibc source, EFIStub+LUKS)
 - GUI installer: all configuration saved to `/tmp/artix-installer/state.conf` in the same format as the TUI
 - GUI integration: automatic detection of `DISPLAY`/`WAYLAND_DISPLAY` and `forge-gui` presence
 - GUI integration: user prompt at startup to choose GUI over TUI when graphical session detected
-- GUI integration: non‑interactive installer mode (`scripts/noninteractive.sh`) overriding all `tui_*` functions when GUI config is saved
+- GUI integration: non-interactive installer mode (`scripts/noninteractive.sh`) overriding all `tui_*` functions when GUI config is saved
 - GUI integration: full installation pipeline reuses existing stages without UI prompts
 - GUI integration: `forge-gui` added as a git submodule in `forge-gui/`
 - `forge-gui` now installs `jsonschema` and `pygobject` as Python dependencies
 - `preflight.sh` installs GTK3 and system Python bindings when GUI mode is enabled
 - `install` script now supports `--non-interactive` flag (used by GUI after config save)
 - GUI installer: categorized extras page with tabs for System Tools, Editors, Browsers, File Managers, Terminals, Shell & Prompt, Monitoring, and Media – includes "Select All" per category
-- GUI installer: optional black or white background (user‑selectable on Theme page)
+- GUI installer: optional black or white background (user-selectable on Theme page)
 
 ### Changed
 - `gartix` package manager renamed to `anvil` – binary, internal scripts, and documentation updated accordingly
 - `forge-gui` repository stripped of all Textual TUI code – now pure GTK3 GUI only
-- `cli.py` extended with `--mode config` to launch persistent configuration window (replaces single‑widget mode for install flow)
+- `cli.py` extended with `--mode config` to launch persistent configuration window (replaces single-widget mode for install flow)
 - `tui_yesno` override in `noninteractive.sh` now checks `SIGN_UKI` state variable to answer Secure Boot prompts correctly
 - `state.sh` now includes `GUI_MODE` variable to persist GUI selection across stages
-- `install` script now runs non‑interactive pipeline directly after GUI config saves, without returning to TUI
+- `install` script now runs non-interactive pipeline directly after GUI config saves, without returning to TUI
 - Changelog restructured to separate v8.5 (ISO + migrations) from v8.6 (GUI + integration)
 
 ### Fixed
-- `bootloader.sh` Secure Boot prompt no longer blocks non‑interactive installation – reads `SIGN_UKI` from state instead
+- `bootloader.sh` Secure Boot prompt no longer blocks non-interactive installation – reads `SIGN_UKI` from state instead
 - `forge-gui` no longer attempts to run `sudo ./install` on its own – saves config and exits cleanly
 - `forge-gui` theme preview now updates correctly when switching theme options
 
@@ -1156,7 +1252,7 @@ The next few patches will include GUI upgrades.
 - `GUIDE.md` added GUI installation section
 - `forge-gui/README.md` rewritten for pure GTK frontend
 - `poweruser/README.md` updated: all `gartix` references changed to `anvil`
-- `DOCUMENTS/ROADMAP.md` updated: GUI integration moved from think‑tank to v8.6
+- `DOCUMENTS/ROADMAP.md` updated: GUI integration moved from think-tank to v8.6
 
 ## v8.5.0.0 (2026-06-05) — ArtixForge
 
@@ -1227,7 +1323,7 @@ The next few patches will include GUI upgrades.
 
 ### Fixed
 - LUKS: mapper name now dynamic (`cryptlvm` with LVM, `cryptroot` without) – fixes boot when LUKS is used without LVM
-- LUKS: `crypt_uuid` correctly derived for LUKS‑only setups (previously only worked with LVM)
+- LUKS: `crypt_uuid` correctly derived for LUKS-only setups (previously only worked with LVM)
 - GRUB: `cryptdevice=` and correct `root=` now injected into `GRUB_CMDLINE_LINUX` when LUKS is active
 - rEFInd: full kernel cmdline with `cryptdevice` and appropriate root written to `refind_linux.conf`
 - EFIStub: cmdline rebuilt dynamically for LUKS/LVM combinations
@@ -1521,7 +1617,7 @@ The next few patches will include GUI upgrades.
 - Disk space checks at critical stages: preflight (3GB), base (5GB), poweruser (10GB)
 - Pacman lock recovery before every `pacman -S` call in basestrap, drivers, and desktop installs
 - Retry with exponential backoff for pacman installs in drivers.sh and desktop.sh
-- Mid‑build resume for Power User recipes via `ARTIX_RESUME_BUILD` flag — preserves work directory on retry
+- Mid-build resume for Power User recipes via `ARTIX_RESUME_BUILD` flag — preserves work directory on retry
 - Resume partial downloads via `curl_resume` in builder.bash `fetch_sources()`
 - Enhanced `stage_validate()` in state.sh with real success indicators for base, poweruser, and chroot stages
 - VirtIO block driver (`virtio_blk`) added to initramfs MODULES for QEMU/VirtIO VM support

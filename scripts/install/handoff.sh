@@ -80,6 +80,7 @@ DISPLAY_MANAGER="$(state_get DISPLAY_MANAGER)"
 AUDIO_STACK="$(state_get AUDIO_STACK)"
 SWAP_ENABLED="$(state_get SWAP_ENABLED)"
 SWAP_SIZE="$(state_get SWAP_SIZE)"
+ZRAM_PERCENT="$(state_get ZRAM_PERCENT)"
 EXTRAS="$(state_get EXTRAS)"
 KERNEL_CHOICE="$(state_get KERNEL_CHOICE)"
 KERNEL_CONFIG_DEPTH="$(state_get KERNEL_CONFIG_DEPTH)"
@@ -102,6 +103,8 @@ $(for ((i=1; i<=$(state_get USER_COUNT 1); i++)); do
     printf 'USER_%d_SHELL="%s"\n'  "$i" "$(state_get "USER_${i}_SHELL" "/bin/bash")"
     printf 'USER_%d_GROUPS="%s"\n' "$i" "$(state_get "USER_${i}_GROUPS" "")"
     printf 'USER_%d_SUDO="%s"\n'   "$i" "$(state_get "USER_${i}_SUDO" "yes")"
+    printf 'USER_%d_DE="%s"\n'     "$i" "$(state_get "USER_${i}_DE" "")"
+    printf 'USER_%d_DOTFILES="%s"\n' "$i" "$(state_get "USER_${i}_DOTFILES" "")"
 done)
 PRIV_ESCALATION="$(state_get PRIV_ESCALATION)"
 NETWORK_STACK="$(state_get NETWORK_STACK)"
@@ -117,6 +120,8 @@ ARTIX_BOOT_MODE="$(state_get ARTIX_BOOT_MODE)"
 LUKS_KEYFILE="$(state_get LUKS_KEYFILE)"
 LUKS_KEYFILE_PATH="$(state_get LUKS_KEYFILE_PATH)"
 ISO_ARCH_REPOS="$(state_get ISO_ARCH_REPOS)"
+POST_INSTALL_SCRIPT="$(state_get POST_INSTALL_SCRIPT)"
+POST_INSTALL_ONESHOT="$(state_get POST_INSTALL_ONESHOT)"
 EOF
     chmod 600 /mnt/etc/artix-installer.conf
 

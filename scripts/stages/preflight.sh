@@ -66,8 +66,10 @@ stage_preflight() {
     local fs_type;
     local target_kernel;
     local live_kernel_pkg="";
+    local target_arch;
     fs_type="$(state_get FS_TYPE ext4)";
     target_kernel="$(state_get KERNEL_CHOICE linux)";
+    target_arch="$(state_get TARGET_ARCH x86_64)";
 
     command_exists sgdisk       || pkgs+=(gptfdisk);
     command_exists partprobe    || pkgs+=(parted);
@@ -79,6 +81,10 @@ stage_preflight() {
     command_exists btrfs        || pkgs+=(btrfs-progs);
 
     [[ "$(state_get USE_LVM no)" == "yes" ]] && { command_exists pvcreate || pkgs+=(lvm2); }
+
+    if [[ "${target_arch}" == "aarch64" ]]; then
+        command_exists mkimage || pkgs+=(uboot-tools);
+    fi
 
     if [[ "$(state_get POWER_USER no)" == "yes" ]]; then
         for tool in bc flex bison openssl fakeroot; do
@@ -105,15 +111,13 @@ stage_preflight() {
 
     if [[ ${#pkgs[@]} -gt 0 ]]; then
         log_info "Installing required tools: ${pkgs[*]}"
-        if ! gum spin --spinner dot --title "Preflight – installing dependencies" -- \
-            pacman -S --noconfirm --needed "${pkgs[@]}"; then
+        if ! pacman -S --noconfirm --needed "${pkgs[@]}"; then
             log_warn "Package installation failed — restoring original mirrors and retrying."
             if [[ -f "${original_mirrorlist}" ]]; then
                 cp "${original_mirrorlist}" /etc/pacman.d/mirrorlist
                 pacman -Sy --noconfirm || true
             fi
-            if ! gum spin --spinner dot --title "Preflight – retrying" -- \
-                pacman -S --noconfirm --needed "${pkgs[@]}"; then
+            if ! pacman -S --noconfirm --needed "${pkgs[@]}"; then
                 log_error "Failed to install: ${pkgs[*]}"
                 recoverable_error "Package installation failed. Check network and mirrorlist."
             fi

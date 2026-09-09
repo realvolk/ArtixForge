@@ -34,9 +34,9 @@ to `artix-debug.log` and sets `BASH_XTRACEFD=19`.  This separates the debug
 trace from the TUI, which would otherwise be destroyed by `set -x` noise on
 stderr.
 
-### Non‑interactive mode
+### Non-interactive mode
 The `--non-interactive` flag is used when the GUI frontend writes a state file
-and re‑launches the installer.  `scripts/noninteractive.sh` replaces every
+and re-launches the installer.  `scripts/noninteractive.sh` replaces every
 `tui_*` function with a stub that either returns canned answers or pulls values
 from the state file, allowing the same pipeline to run headless.
 
@@ -60,14 +60,14 @@ one.
 
 ### `local mode` re-use in advanced submenu
 The outer `while` loop declares `local mode` once, then the advanced submenu
-re‑assigns it.  This is safe *as long as the inner `case` is checked before the
+re-assigns it.  This is safe *as long as the inner `case` is checked before the
 outer one*, but it’s fragile.  v9.1.1.4 uses a separate `local advanced_choice`
 variable to eliminate the risk entirely.
 
 ### `tui_quick_install` state contamination
-Declining a quick profile left half‑set state variables (DISK, FS_TYPE, etc.)
+Declining a quick profile left half-set state variables (DISK, FS_TYPE, etc.)
 that would then mix with the subsequent manual selection.  The fix wipes all
-quick‑profile keys before falling through to manual config.
+quick-profile keys before falling through to manual config.
 
 ---
 
@@ -92,7 +92,7 @@ errors.
 ### LVM on LUKS device chain
 When both LUKS and LVM are enabled, the partition is first opened as
 `/dev/mapper/cryptlvm`, then `pvcreate`/`vgcreate`/`lvcreate` operate on that
-mapper device.  The root LV becomes `/dev/vg0/root`.  This double‑layer requires
+mapper device.  The root LV becomes `/dev/vg0/root`.  This double-layer requires
 the kernel command line to reference `cryptdevice=UUID=...:cryptlvm` and
 `root=/dev/vg0/root`.
 
@@ -136,14 +136,14 @@ copies them to `EFI/Artix/` and references them via `\EFI\Artix\...` in the
 The `elogind-dinit` package installs *two* service files: `elogind` (the actual
 daemon) and `logind` (a `type = internal` stub that depends on `elogind`).  Many
 scripts call `enable_service logind`, which symlinks the stub.  The stub does
-not auto‑start `elogind` because dinit’s `internal` type doesn’t trigger
+not auto-start `elogind` because dinit’s `internal` type doesn’t trigger
 dependency resolution the same way.  The fix maps `dinit:logind` → `svc="elogind"`
 inside `enable_service` and `enable_service_boot`.
 
 ### `cold_reboot` via SysRq
 When swapping init systems (e.g., OpenRC → dinit), a warm reboot is not enough
 — the new init must be PID 1 from the kernel’s handoff.  `cold_reboot` syncs,
-remounts read‑only, and triggers a hard reset via `echo b > /proc/sysrq-trigger`.
+remounts read-only, and triggers a hard reset via `echo b > /proc/sysrq-trigger`.
 
 ---
 
@@ -164,18 +164,18 @@ rate limiting (60 req/h anonymous).
 
 ### `_major` kernel version
 Some kernel recipes store the major version in `_major` (e.g., `_major=6`).
-Healing re‑extracts this from the new `pkgver` so the URL pattern
+Healing re-extracts this from the new `pkgver` so the URL pattern
 `/pub/linux/kernel/v${_major}.x/` stays correct.
 
 ### `build_package` dual installation
 During the installer stage, packages are installed to both the live environment
-(for build dependencies) and `/mnt` (the target system).  Post‑install `anvil`
+(for build dependencies) and `/mnt` (the target system).  Post-install `anvil`
 calls do not use `/mnt`; the function relies on the caller to have the target
 mounted if needed.
 
-### `validate_system` post‑build checks
+### `validate_system` post-build checks
 After building a custom kernel, the validator checks that the target’s
-filesystem driver is built‑in (`=y`, not a module), that a block device driver
+filesystem driver is built-in (`=y`, not a module), that a block device driver
 exists, and that the initramfs and bootloader entries reference the custom
 kernel.  Warnings are emitted but the install continues — the user can fix
 things in recovery.
@@ -184,13 +184,13 @@ things in recovery.
 
 ## ISO Builder (`iso/`)
 
-### `buildiso` monkey‑patching
+### `buildiso` monkey-patching
 Artools’ `mount.sh` can hang on `umount` when overlayfs is busy.  The installer
 patches it to retry with `umount -l` up to 5 times.  Similarly, `buildiso` is
-patched to tolerate `find … -delete` failures on read‑only files.  Original
+patched to tolerate `find … -delete` failures on read-only files.  Original
 files are restored after the build.
 
-### Stage‑based ISO resume
+### Stage-based ISO resume
 ISO builds save progress to `/tmp/artix-installer/iso-build-stage.conf` at each
 major step (profile, offline, chroot, iso).  If interrupted, the build resumes
 from the last completed stage.
@@ -202,7 +202,7 @@ package filenames, with a hardcoded fallback.  This is fragile and will break if
 the mirror changes its index format.
 
 ### Offline kernel builds
-When building an offline ISO with a non‑standard kernel (CachyOS, XanMod,
+When building an offline ISO with a non-standard kernel (CachyOS, XanMod,
 Bazzite), the installer creates a chroot, downloads the kernel packages, and
 copies them into the ISO’s local repository.  The target system’s `pacman.conf`
 is rewritten to use `[custom]` pointing to `file:///mnt/repo/`.
@@ -212,9 +212,9 @@ is rewritten to use `[custom]` pointing to `file:///mnt/repo/`.
 ## Recovery (`scripts/recovery/`)
 
 ### `recovery_mount_all` device probing
-The auto‑mount function tries LUKS containers, LVM volume groups, and plain
+The auto-mount function tries LUKS containers, LVM volume groups, and plain
 partitions in sequence.  It scans `/dev/mapper/*` for filesystem signatures
-before falling back to raw block devices, ensuring encrypted or LVM‑wrapped
+before falling back to raw block devices, ensuring encrypted or LVM-wrapped
 systems are found.
 
 ### `detect_seat_manager` service check
@@ -249,7 +249,7 @@ lowers `SigLevel` to `Never` to install the Artix keyring, then reinstalls every
 package from Artix repositories.  `pacman -Sl system|world|galaxy | grep installed`
 is used to rebuild the package list.
 
-### `_chroot` / `_pacman` dual‑path
+### `_chroot` / `_pacman` dual-path
 Migration functions use `_chroot` and `_pacman` wrappers that automatically
 prepend `artix-chroot "${MIG_ROOT}"` when running from a live ISO.  This avoids
 duplicating every command with an `if` branch.
@@ -388,7 +388,7 @@ compositing in `xfwm4.xml` or enable 3D acceleration in the VM.
 
 ### VFAT kernel module on dinit ISOs
 Some Artix dinit live ISOs ship with `vfat` as a module that is not
-auto‑loaded.  The preflight stage now explicitly checks for VFAT support,
+auto-loaded.  The preflight stage now explicitly checks for VFAT support,
 attempts `modprobe vfat`, and gives a clear error if the ISO kernel lacks it.
 
 ---
@@ -397,7 +397,7 @@ attempts `modprobe vfat`, and gives a clear error if the ISO kernel lacks it.
 
 ### `state_set` and `state_save`
 State is stored as `KEY=value` in `/tmp/artix-installer/state.conf`.  `state_set`
-replaces a key in‑place using a `while read` loop and a temp file — this is
+replaces a key in-place using a `while read` loop and a temp file — this is
 atomic enough for our purposes and avoids pulling in `sed -i` which behaves
 differently across implementations.  Values are escaped with `printf '%q'`.
 
@@ -412,7 +412,7 @@ Some commands produce enormous trace output that fills debug logs instantly.
 suppressing trace for that command only.
 
 ### `retry_command` with exponential backoff
-Network‑fragile operations (package downloads, `basestrap`) are wrapped in
+Network-fragile operations (package downloads, `basestrap`) are wrapped in
 `retry_command` which retries up to 3 times with delays of 5, 10, and 20
 seconds.
 
@@ -421,6 +421,24 @@ When operating on a mounted target system, recovery and migration code uses
 `pacman --root /mnt` to query and modify the target’s package database without
 entering a full chroot.  This is faster and avoids issues with `/dev`, `/proc`,
 or `/sys` not being mounted inside the chroot.
+
+
+---
+
+## v9.4.0.0 — The Great Backport (September 2026)
+
+### Why this version exists
+
+FILLY 0.7.0 was supposed to be the TUI rewrite — a pure C widget library with
+JSON relay over Unix sockets. The `tui-rewrite` branch had the full FILLY
+integration working on installed systems. But FILLY's build system links
+against desktop libraries (`libdrm.so.2`, `libinput.so.10`, etc.) that don't
+exist on minimal live ISOs. The binary crashes on boot because the shared
+libraries are missing (Fuck you GLIBC/GCC and fuck my laziness)
+
+FILLY is still open beta and under active development.Fixing FILLY's build system to stop pulling in desktop
+deps for terminal-only builds is a non-trivial task that doesn't fit into
+the current schedule.
 
 ---
 

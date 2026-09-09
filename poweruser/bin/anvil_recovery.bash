@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 anvil_recovery_status() {
-    log_info "Checking source‑built packages..."
+    log_info "Checking source-built packages..."
     local db="${POWERUSER_DIR}/db/local.db"
     [[ -f "${db}" ]] || { echo "No source packages installed."; return 0; }
 
@@ -28,7 +28,7 @@ anvil_recovery_status() {
     done < <(tail -n +2 "${db}" 2>/dev/null)
 
     if [[ ${issues} -eq 0 ]]; then
-        log_info "All source‑built packages are healthy."
+        log_info "All source-built packages are healthy."
     else
         log_warn "Found ${issues} potential issue(s)."
     fi

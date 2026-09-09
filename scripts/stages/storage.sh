@@ -53,7 +53,7 @@ Press OK when done."
             swap_part=$(tui_input "Swap Partition" "Enter swap partition (leave empty to skip):" "") || true
             if [[ -n "${swap_part}" && -b "${swap_part}" ]]; then
                 state_set SWAP_PART "${swap_part}"
-                state_set SWAP_ENABLED "yes"
+                state_set SWAP_ENABLED "partition"
             fi
         fi
     else

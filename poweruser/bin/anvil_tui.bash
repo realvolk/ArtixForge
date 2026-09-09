@@ -70,6 +70,7 @@ tui_main() {
             "Fetch kernel source" \
             "Fetch a recipe from repo" \
             "Fetch all sources" \
+            "Fetch world sources" \
             "Manage recipe sections" \
             "Lint recipe" \
             "Checksum recipe" \
@@ -77,6 +78,21 @@ tui_main() {
             "Recovery – check & repair source packages" \
             "Upgrade recipes" \
             "Clean cache" \
+            "Package files" \
+            "Verify package" \
+            "Remove package" \
+            "Recipe history" \
+            "Recipe diff" \
+            "Rollback recipe" \
+            "Feature flags" \
+            "Flag info" \
+            "Build shell" \
+            "Recipe trial" \
+            "Garbage collect" \
+            "Bootstrap system" \
+            "Security audit" \
+            "Build estimate" \
+            "World file" \
             "Quit") || break
 
         case "$action" in
@@ -149,6 +165,10 @@ tui_main() {
                 fetch_all_sources
                 tui_msg "Fetch All" "All recipe sources downloaded."
                 ;;
+            "Fetch world sources")
+                anvil_fetch_world
+                tui_msg "Fetch World" "All world sources downloaded."
+                ;;
             "Manage recipe sections")
                 tui_manage_sections
                 ;;
@@ -178,7 +198,7 @@ tui_main() {
                 ;;
             "Recovery – check & repair source packages")
                 anvil_recovery_status
-                if tui_yesno "Repair source packages?" "Attempt to repair all source‑built packages?"; then
+                if tui_yesno "Repair source packages?" "Attempt to repair all source-built packages?"; then
                     local repaired=()
                     while IFS='|' read -r pkgname _; do
                         [[ -n "${pkgname}" ]] || continue
@@ -198,6 +218,165 @@ tui_main() {
             "Clean cache")
                 cache_clean
                 tui_msg "Cache" "Obsolete packages removed."
+                ;;
+            "Package files")
+                local pkg_list2=$(list_packages 2>/dev/null | awk '{print $1}')
+                if [[ -z "$pkg_list2" ]]; then
+                    tui_msg "No packages" "No source packages installed."
+                    continue
+                fi
+                local files_pkg=$(tui_menu "Select package" "" $pkg_list2) || continue
+                local files_result=$(anvil_files "$files_pkg" 2>&1)
+                tui_msg "Files: $files_pkg" "$files_result"
+                ;;
+            "Verify package")
+                local pkg_list3=$(list_packages 2>/dev/null | awk '{print $1}')
+                if [[ -z "$pkg_list3" ]]; then
+                    tui_msg "No packages" "No source packages installed."
+                    continue
+                fi
+                local verify_pkg=$(tui_menu "Select package" "" $pkg_list3) || continue
+                local verify_result=$(anvil_verify "$verify_pkg" 2>&1)
+                tui_msg "Verify: $verify_pkg" "$verify_result"
+                ;;
+            "Remove package")
+                local pkg_list4=$(list_packages 2>/dev/null | awk '{print $1}')
+                if [[ -z "$pkg_list4" ]]; then
+                    tui_msg "No packages" "No source packages installed."
+                    continue
+                fi
+                local remove_pkg=$(tui_menu "Select package" "" $pkg_list4) || continue
+                if tui_yesno "Remove $remove_pkg" "Really remove this package?"; then
+                    anvil_remove "$remove_pkg"
+                    tui_msg "Removed" "$remove_pkg removed."
+                fi
+                ;;
+            "Recipe history")
+                local avail5=$(list_recipes 2>/dev/null | awk '{print $1}')
+                if [[ -z "$avail5" ]]; then
+                    tui_msg "No recipes" "No recipes found."
+                    continue
+                fi
+                local log_pkg=$(tui_menu "Select recipe" "" $avail5) || continue
+                local log_result=$(anvil_log "$log_pkg" 2>&1)
+                tui_msg "History: $log_pkg" "$log_result"
+                ;;
+            "Recipe diff")
+                local avail6=$(list_recipes 2>/dev/null | awk '{print $1}')
+                if [[ -z "$avail6" ]]; then
+                    tui_msg "No recipes" "No recipes found."
+                    continue
+                fi
+                local diff_pkg=$(tui_menu "Select recipe" "" $avail6) || continue
+                local diff_result=$(anvil_diff "$diff_pkg" 2>&1)
+                tui_msg "Diff: $diff_pkg" "$diff_result"
+                ;;
+            "Rollback recipe")
+                local avail7=$(list_recipes 2>/dev/null | awk '{print $1}')
+                if [[ -z "$avail7" ]]; then
+                    tui_msg "No recipes" "No recipes found."
+                    continue
+                fi
+                local rollback_pkg=$(tui_menu "Select recipe" "" $avail7) || continue
+                local commit=$(tui_input "Rollback" "Enter commit hash:") || continue
+                [[ -z "$commit" ]] && continue
+                anvil_rollback_recipe "$rollback_pkg" "$commit"
+                tui_msg "Rollback" "$rollback_pkg rolled back to $commit."
+                ;;
+            "Feature flags")
+                local avail8=$(list_recipes 2>/dev/null | awk '{print $1}')
+                if [[ -z "$avail8" ]]; then
+                    tui_msg "No recipes" "No recipes found."
+                    continue
+                fi
+                local flag_pkg=$(tui_menu "Select package" "" $avail8) || continue
+                local current_flags=$(anvil_flag "$flag_pkg" 2>&1)
+                tui_msg "Current Flags: $flag_pkg" "$current_flags"
+                local flag_name=$(tui_input "Flag" "Enter flag name:") || continue
+                [[ -z "$flag_name" ]] && continue
+                local flag_action=$(tui_menu "Action" "Toggle, enable, or disable?" "toggle" "on" "off") || continue
+                anvil_flag "$flag_pkg" "$flag_name" "$flag_action"
+                tui_msg "Flag" "Flag ${flag_name} ${flag_action} for ${flag_pkg}."
+                ;;
+            "Flag info")
+                local avail9=$(list_recipes 2>/dev/null | awk '{print $1}')
+                if [[ -z "$avail9" ]]; then
+                    tui_msg "No recipes" "No recipes found."
+                    continue
+                fi
+                local flag_info_pkg=$(tui_menu "Select package" "" $avail9) || continue
+                local flag_info_name=$(tui_input "Flag" "Enter flag name:") || continue
+                [[ -z "$flag_info_name" ]] && continue
+                local flag_info_result=$(anvil_flag_info "$flag_info_pkg" "$flag_info_name" 2>&1)
+                tui_msg "Flag Info: $flag_info_pkg/$flag_info_name" "$flag_info_result"
+                ;;
+            "Build shell")
+                local avail10=$(list_recipes 2>/dev/null | awk '{print $1}')
+                if [[ -z "$avail10" ]]; then
+                    tui_msg "No recipes" "No recipes found."
+                    continue
+                fi
+                local shell_pkg=$(tui_menu "Select package" "" $avail10) || continue
+                anvil_shell "$shell_pkg"
+                ;;
+            "Recipe trial")
+                local trial_url=$(tui_input "Trial" "Enter source tarball URL:") || continue
+                [[ -z "$trial_url" ]] && continue
+                anvil_trial "$trial_url"
+                tui_msg "Trial" "Recipe generated from ${trial_url}."
+                ;;
+            "Garbage collect")
+                if tui_yesno "GC" "Run garbage collection?"; then
+                    anvil_gc
+                    tui_msg "GC" "Garbage collection complete."
+                fi
+                ;;
+            "Bootstrap system")
+                local bootstrap_dir=$(tui_input "Bootstrap" "Target directory:" "/tmp/anvil-bootstrap") || continue
+                [[ -z "$bootstrap_dir" ]] && continue
+                anvil_bootstrap "$bootstrap_dir"
+                tui_msg "Bootstrap" "System built at ${bootstrap_dir}."
+                ;;
+            "Security audit")
+                local audit_result=$(anvil_audit "" 2>&1)
+                tui_msg "Security Audit" "$audit_result"
+                ;;
+            "Build estimate")
+                local estimate_result=$(anvil_estimate 2>&1)
+                tui_msg "Build Estimate" "$estimate_result"
+                ;;
+            "World file")
+                local world_action=$(tui_menu "World" "Select action:" \
+                    "Status" "Add package" "Remove package" "Build" "Activate staged" "Back") || continue
+                case "$world_action" in
+                    "Status")
+                        local world_status=$(anvil_world status 2>&1)
+                        tui_msg "World Status" "$world_status"
+                        ;;
+                    "Add package")
+                        local world_add=$(tui_input "World" "Package name:") || continue
+                        [[ -z "$world_add" ]] && continue
+                        anvil_world add "$world_add"
+                        tui_msg "World" "$world_add added."
+                        ;;
+                    "Remove package")
+                        local world_remove=$(tui_input "World" "Package name:") || continue
+                        [[ -z "$world_remove" ]] && continue
+                        anvil_world remove "$world_remove"
+                        tui_msg "World" "$world_remove removed."
+                        ;;
+                    "Build")
+                        if tui_yesno "World Build" "Build all packages in world file?"; then
+                            anvil_world build
+                            tui_msg "World" "World build complete."
+                        fi
+                        ;;
+                    "Activate staged")
+                        local stage_dir=$(tui_input "Activate" "Staged directory:" "/nextroot") || continue
+                        [[ -z "$stage_dir" ]] && continue
+                        anvil_world activate "$stage_dir"
+                        ;;
+                esac
                 ;;
             "Quit") break ;;
         esac

@@ -5,7 +5,7 @@ tui_select_desktop() {
     local d
     d=$(tui_menu "Desktop Environment" "Select desktop:" \
         "xfce4" "lxqt" "kde" "lxde" "mango" "hyprland" "niri" "sway" \
-        "i3wm" "dwm" "vxwm" "icewm" "sonicde" "cinnamon" "budgie" "moksha" "cosmic" "none") || return 1
+        "i3wm" "dwm" "vxwm" "icewm" "cinnamon" "budgie" "moksha" "cosmic" "none") || return 1
     state_set WM_DE "${d}"
 
     if [[ "${d}" == "kde" ]]; then
@@ -36,6 +36,6 @@ tui_select_xstack() {
         state_set X_STACK "none"
         return 0
     fi
-    stack=$(tui_menu "Display Stack" "Select display stack:" "X.Org" "xLibre") || return 1
-    state_set X_STACK "${stack,,}"
+    stack=$(tui_menu "Display Stack" "Select display stack:" "X.Org") || return 1
+    state_set X_STACK "xorg"
 }

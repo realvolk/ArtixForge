@@ -10,12 +10,10 @@ stage_poweruser() {
         return 0
     }
 
-    if [[ "$(state_get GUI_MODE no)" != "yes" ]]; then
-        POWERUSER_DIR="${BASE_DIR}/poweruser"
-        source "${POWERUSER_DIR}/lib/common.sh"
-        source "${POWERUSER_DIR}/tui/menu_poweruser.sh"
-        tui_poweruser_config
-    fi
+    POWERUSER_DIR="${BASE_DIR}/poweruser"
+    source "${POWERUSER_DIR}/lib/common.sh"
+    source "${POWERUSER_DIR}/tui/menu_poweruser.sh"
+    tui_poweruser_config
 
     POWERUSER_DIR="${BASE_DIR}/poweruser"
     source "${POWERUSER_DIR}/lib/common.sh"
@@ -26,6 +24,7 @@ stage_poweruser() {
     source "${POWERUSER_DIR}/lib/builder.bash"
     source "${POWERUSER_DIR}/lib/cache.bash"
     source "${POWERUSER_DIR}/lib/validate.bash"
+    source "${POWERUSER_DIR}/lib/kconfig_fragments.bash"
     source "${POWERUSER_DIR}/tui/progress.sh"
     source "${SCRIPT_DIR}/tui/core.sh"
     source "${SCRIPT_DIR}/common.sh"
@@ -33,6 +32,17 @@ stage_poweruser() {
     local profile_name
     profile_name="$(state_get POWERUSER_PROFILE default)"
     load_profile "${profile_name}"
+
+    local target_arch
+    target_arch="$(state_get TARGET_ARCH x86_64)"
+    if [[ "${target_arch}" != "x86_64" ]]; then
+        local cross_profile="${POWERUSER_DIR}/profile/cross-${target_arch}.sh"
+        [[ -f "${cross_profile}" ]] || die "Cross-compilation profile not found: ${cross_profile}"
+        source "${cross_profile}"
+        export CROSS_COMPILE="${CROSS_COMPILE:-${target_arch}-linux-gnu-}"
+        export ARCH="${ARCH:-arm64}"
+        export TARGET_ARCH="${target_arch}"
+    fi
 
     if [[ ! -d /mnt/tmp ]]; then
         mkdir -p /mnt/tmp || die "/mnt/tmp does not exist and cannot be created"
@@ -88,6 +98,9 @@ stage_poweruser() {
         remaining="$(queue_remaining)"
         log_info "[${pkg}] Building... (${remaining} remaining)"
 
+        resolve_pkg_flags "${pkg}"
+        resolve_flag_conflicts || continue
+
         build_package "${pkg}"
         local build_rc=$?
 
@@ -125,8 +138,7 @@ stage_poweruser() {
     cp "${POWERUSER_DIR}/bin/"* /mnt/usr/local/bin/
     chmod +x /mnt/usr/local/bin/anvil
 
-    cp "${POWERUSER_DIR}/lib"/{common.sh,flags,recipe,validate,builder,cache,rebuild,kconfig,hwdetect}.bash /mnt/usr/share/artix-poweruser/lib/ 2>/dev/null || true
-    cp "${POWERUSER_DIR}/lib/common.sh" /mnt/usr/share/artix-poweruser/lib/ 2>/dev/null || true
+    cp "${POWERUSER_DIR}/lib"/{common.sh,flags.bash,recipe.bash,validate.bash,builder.bash,cache.bash,rebuild.bash,kconfig_fragments.bash,hwdetect.bash} /mnt/usr/share/artix-poweruser/lib/ 2>/dev/null || true
 
     cp "${POWERUSER_DIR}/profile"/*.sh /mnt/usr/share/artix-poweruser/profile/
     echo "${profile_name}" > /mnt/usr/share/artix-poweruser/profile/active

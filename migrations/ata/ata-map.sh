@@ -8,34 +8,24 @@ ata_build_package_map() {
     pacman -Sy --noconfirm 2>/dev/null || true
     : > "${ATA_MAP_CACHE}"
 
-    # Units that are systemd-internal and should never appear in the migration checklist
     local -A skip_units=(
-        # Journal / logging
         ["systemd-journald.service"]=1
         ["systemd-journal-flush.service"]=1
         ["systemd-journal-catalog-update.service"]=1
         ["systemd-journald-dev-log.socket"]=1
         ["systemd-journald.socket"]=1
-
-        # Login / session / user tracking
         ["systemd-logind.service"]=1
         ["systemd-user-sessions.service"]=1
         ["systemd-userdbd.service"]=1
         ["user-runtime-dir@.service"]=1
         ["systemd-homed.service"]=1
         ["systemd-homed-activate.service"]=1
-
-        # Network (resolved/networkd are systemd-native)
         ["systemd-resolved.service"]=1
         ["systemd-networkd.service"]=1
         ["systemd-networkd-wait-online.service"]=1
         ["systemd-network-generator.service"]=1
         ["systemd-resolved-generator.service"]=1
-
-        # Time sync
         ["systemd-timesyncd.service"]=1
-
-        # Device / kernel / boot
         ["systemd-udevd.service"]=1
         ["systemd-udevd-control.socket"]=1
         ["systemd-udevd-kernel.socket"]=1
@@ -52,30 +42,20 @@ ata_build_package_map() {
         ["systemd-pstore.service"]=1
         ["systemd-binfmt.service"]=1
         ["systemd-sysctl.service"]=1
-
-        # Random seed / entropy
         ["systemd-random-seed.service"]=1
-
-        # Tmpfiles / sysusers / machine-id
         ["systemd-tmpfiles-setup.service"]=1
         ["systemd-tmpfiles-setup-dev.service"]=1
         ["systemd-tmpfiles-clean.service"]=1
         ["systemd-sysusers.service"]=1
         ["systemd-machine-id-commit.service"]=1
-
-        # Update / utmp
         ["systemd-update-utmp.service"]=1
         ["systemd-update-utmp-runlevel.service"]=1
-
-        # Backlight / rfkill / hardware
         ["systemd-backlight@.service"]=1
         ["systemd-rfkill.service"]=1
         ["systemd-rfkill.socket"]=1
         ["systemd-hwdb-update.service"]=1
         ["systemd-ask-password-console.service"]=1
         ["systemd-ask-password-wall.service"]=1
-
-        # Mount / swap / crypto (handled by fstab/crypttab instead)
         ["systemd-fstab-generator"]=1
         ["systemd-cryptsetup@.service"]=1
         ["systemd-cryptsetup-generator"]=1
@@ -88,13 +68,9 @@ ata_build_package_map() {
         ["systemd-shutdown"]=1
         ["systemd-reboot"]=1
         ["systemd-poweroff"]=1
-
-        # OOM / watchdog
         ["systemd-oomd.service"]=1
         ["systemd-oomd.socket"]=1
         ["systemd-watchdog.service"]=1
-
-        # Systemd-specific targets
         ["sysinit.target"]=1
         ["basic.target"]=1
         ["multi-user.target"]=1
@@ -128,8 +104,6 @@ ata_build_package_map() {
         ["system-update.target"]=1
         ["system-update-pre.target"]=1
         ["kexec.target"]=1
-
-        # Timer units (converted to cron separately)
         ["systemd-tmpfiles-clean.timer"]=1
         ["systemd-timesyncd.timer"]=1
         ["systemd-rfkill.timer"]=1
@@ -137,8 +111,6 @@ ata_build_package_map() {
         ["systemd-journald-audit.socket"]=1
         ["systemd-networkd.socket"]=1
         ["systemd-resolved.socket"]=1
-
-        # Core systemd binary itself
         ["systemd"]=1
         ["systemd-stub"]=1
         ["systemd-shutdown"]=1
@@ -149,7 +121,6 @@ ata_build_package_map() {
     )
 
     while IFS= read -r unit; do
-        # Skip empty lines
         [[ -z "${unit}" ]] && continue
 
         [[ -n "${skip_units[${unit}]:-}" ]] && continue

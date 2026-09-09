@@ -8,7 +8,7 @@ source "${BASESTRAP_DIR}/target_repos.sh"
 source "${BASESTRAP_DIR}/kernel_build.sh"
 
 install_base_system() {
-    local init kernel fs_type bootloader network_stack user_shell display_manager wm_de locale keymap timezone microcode_override
+    local init kernel fs_type bootloader network_stack user_shell display_manager wm_de locale keymap timezone microcode_override target_arch
 
     init="$(state_get INIT)"
     kernel="$(state_get KERNEL_CHOICE linux)"
@@ -22,6 +22,7 @@ install_base_system() {
     keymap="$(state_get KEYMAP us)"
     timezone="$(state_get TIMEZONE UTC)"
     microcode_override="$(state_get MICROCODE_OVERRIDE auto)"
+    target_arch="$(state_get TARGET_ARCH x86_64)"
 
     detect_kernel_package "${kernel}"
 
@@ -33,6 +34,10 @@ install_base_system() {
         amd)   ucode='amd-ucode' ;;
         none)  ucode='' ;;
     esac
+
+    if [[ "${target_arch}" == "aarch64" ]]; then
+        ucode=''
+    fi
 
     local priv_esc
     priv_esc="$(state_get PRIV_ESCALATION sudo)"
@@ -51,11 +56,16 @@ install_base_system() {
         git curl wget pciutils "${init_pkg}" dbus mkinitcpio
     )
 
+    if [[ "${target_arch}" == "aarch64" ]]; then
+        pkgs+=(uboot-tools)
+    fi
+
     case "${bootloader}" in
         grub)    pkgs+=(grub os-prober) ;;
         refind)  pkgs+=(refind) ;;
         efistub) ;;
         limine)  pkgs+=(limine) ;;
+        uboot)   ;;
     esac
 
     if [[ "${ARTIX_BOOT_MODE:-uefi}" == "uefi" ]]; then
@@ -82,7 +92,7 @@ install_base_system() {
     [[ "$(state_get POWER_USER no)" == "yes" && "$(state_get KEEP_BINARY_KERNEL yes)" == "no" ]] && skip_binary_kernel=1
 
     case "${kernel}" in
-        linux|linux-zen|linux-lts|linux-hardened)
+        linux|linux-zen|linux-lts|linux-hardened|linux-aarch64|linux-aarch64-lts|linux-radxa)
             basestrap_kernel_standard pkgs "${skip_binary_kernel}"
             ;;
         linux-libre)
@@ -103,6 +113,10 @@ install_base_system() {
         *)
             die "unsupported kernel: ${kernel}" ;;
     esac
+
+    if [[ "$(state_get TKG_BINARY no)" == "yes" && "${kernel}" == "tkg" ]]; then
+        basestrap_install_tkg_binary
+    fi
 
     case "${network_stack}" in
         dhcpcd+iwd)     pkgs+=(dhcpcd iwd "dhcpcd-${init}" "iwd-${init}") ;;
@@ -181,6 +195,17 @@ EOF
         fi
         log_info "Installing Arch Linux keyring..."
         pacman -S --noconfirm --needed archlinux-keyring
+    fi
+
+    if [[ "${target_arch}" == "aarch64" ]]; then
+        log_info "Configuring ARMtix repository..."
+        if ! grep -q '^\[armtix\]' /etc/pacman.conf; then
+            cat <<'EOF' >> /etc/pacman.conf
+[armtix]
+Server = https://armtix.artixlinux.org/repo/$arch
+EOF
+        fi
+        pacman -Sy --noconfirm
     fi
 
     basestrap_repo_auris
@@ -277,7 +302,7 @@ EOF
         artix-chroot /mnt sed -i 's/^MODULES=(/MODULES=(virtio_blk /' /etc/mkinitcpio.conf
     fi
 
-    if [[ "${kernel}" == 'tkg' ]]; then
+    if [[ "${kernel}" == 'tkg' && "$(state_get TKG_BINARY no)" != "yes" ]]; then
         basestrap_build_tkg || die "TKG kernel build failed — cannot continue without a kernel"
     fi
 
