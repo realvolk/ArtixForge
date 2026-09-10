@@ -23,7 +23,7 @@ bootloader_install_grub() {
     grub_extra_args+=( --removable )
 
     if [[ "$(state_get USE_LVM no)" == "yes" ]]; then
-        echo 'GRUB_PRELOAD_MODULES="lvm dm-mod"' >> /mnt/etc/default/grub
+        echo 'GRUB_PRELOAD_MODULES="lvm dm"' >> /mnt/etc/default/grub
         grub_extra_args+=( --modules )
         grub_extra_args+=( "part_gpt part_msdos fat lvm dm ext2" )
     fi
