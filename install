@@ -39,7 +39,7 @@ _generate_bug_report() {
     fi
 
     {
-        printf 'ArtixForge Bug Report\n'
+        printf 'Artix Installer Bug Report\n'
         printf '=====================\n'
         printf 'Date: %s\n' "$(date)"
         printf 'Version: %s\n' "$(cat "${BASE_DIR}/VERSION" 2>/dev/null || echo unknown)"
@@ -269,7 +269,7 @@ main_menu() {
         menu_items+=("Advanced – recovery, power user, migration, ISO")
 
         local mode
-        mode=$(tui_menu "ArtixForge v9" "Select installation mode:" "${menu_items[@]}") || exit 1
+        mode=$(tui_menu "Artix Installer" "Select installation mode:" "${menu_items[@]}") || exit 1
 
         case "${mode}" in
             Installation*)  MODE='auto' ; break ;;
