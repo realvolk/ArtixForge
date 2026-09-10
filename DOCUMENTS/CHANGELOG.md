@@ -1,5 +1,26 @@
 # Changelog
 
+## v9.4.0.1 (2026-09-10) — ArtixForge
+
+### Fixed
+- **GRUB `dm-mod` module name** — replaced invalid GRUB module `dm-mod` with `dm`; the kernel module is `dm-mod.ko`, the GRUB module is `dm.mod`, and `dm` alone is correct in `--modules` and `GRUB_PRELOAD_MODULES`
+- **GRUB module list restructured** — build `grub_modules` and `grub_preload` arrays conditionally based on `USE_LVM` and `USE_LUKS` instead of three separate if/elif branches
+- **LUKS+LVM GRUB modules** — `cryptodisk` and `luks` are the correct GRUB modules for LUKS support; `lvm` for LVM; combination now yields `part_gpt part_msdos fat ext2 lvm cryptodisk luks`
+- **Initramfs hook order for LUKS+LVM** — replaced fragile `sed` edits of `/etc/mkinitcpio.conf` with an `/etc/mkinitcpio.conf.d/artixforge-storage.conf` drop-in that declares the complete `HOOKS` array; eliminates pattern matching failures and guarantees `block encrypt lvm2 filesystems` order
+- **Initramfs regeneration after hook changes** — `mkinitcpio -P` now runs immediately after the storage drop-in is written and fails hard if initramfs generation fails; previously the initramfs was baked into the UKI without `encrypt` or `lvm2` hooks, causing boot to drop to emergency shell with `device '/dev/vg0/root' not found`
+- **Stale UKI EFI boot entries** — `bootloader.sh` now deletes existing `Artix Linux (UKI)` and `Artix Linux (UKI Signed)` entries scoped to the target ESP's PARTUUID before creating new ones; prevents duplicate entries across reinstall attempts
+- **User JSON parsing** — `configure_users` and `state_save` now guard the `jq`-based user parsing behind a `^\[.*\]$` regex check; plain integer `USER_COUNT` values no longer trigger `jq: Cannot index number with number` errors; JSON array format still supported for backward and future FILLY compatibility
+- **`recoverable_error` self-update** — detects current git branch before cloning, validates `install` exists in the fetched payload before wiping `${BASE_DIR}`, `chmod +x` after copy, and removed `sudo` from the exec (installer already runs as root)
+- **Self-copy to `/tmp/artix-run`** — `rm -rf` before copy prevents stale runtime files when target directory already exists
+- **`source_tree recovery` during install** — removed; recovery code no longer sources into installer context, which was shadowing `service_exists` with the recovery variant and causing `enable_service_boot lvm2` to return false for valid services
+
+### Changed
+- **Quick Profiles** — removed AUR-only packages (`heroic-games-launcher`, `fs-uae`, `antimicrox`, `openrgb`, `timidity++`) from Gaming profile
+- **`tui_show_summary`** — rewritten with per-line `printf` calls; previous `printf -v` with multiline gum substitutions collapsed output to a single line
+- **`tui_quick_install`** — now calls `tui_configure_users` for full multi-user flow with per-user DE and dotfiles support, replacing the legacy single-user functions whose data was discarded by `configure_users`
+- **`*Community GTK*` / `*Community Qt*` case patterns** — quoted to prevent bash `case` syntax error from unquoted space in pattern
+- **`recoverable_error` branch detection** — clones the current working branch instead of hardcoded `main`
+
 ## v9.4.0.0 (2026-09-09) — ArtixForge
 
 ### Added

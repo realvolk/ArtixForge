@@ -279,9 +279,23 @@ configure_bootloader() {
         *)       die "unsupported bootloader: ${bootloader}" ;;
     esac
 
-    if [[ "$(state_get GENERATE_UKI no)" == "yes" ]]; then
+if [[ "$(state_get GENERATE_UKI no)" == "yes" ]]; then
         local uki_file="/mnt/boot/efi/EFI/Linux/artix-${uki_kver}.efi"
         if [[ -f "${uki_file}" ]]; then
+            local target_esp_guid
+            target_esp_guid=$(blkid -s PARTUUID -o value "${esp_source}" 2>/dev/null || true)
+
+            log_info "Removing stale UKI boot entries on target ESP..."
+            if [[ -n "${target_esp_guid}" ]]; then
+                while IFS= read -r line; do
+                    if [[ "${line}" == *"Artix Linux (UKI)"* ]] && [[ "${line}" == *"${target_esp_guid}"* ]]; then
+                        local bootnum="${line#Boot}"
+                        bootnum="${bootnum%% *}"
+                        [[ -n "${bootnum}" ]] && artix-chroot /mnt efibootmgr -b "${bootnum}" -B 2>/dev/null || true
+                    fi
+                done < <(efibootmgr -v 2>/dev/null | grep -i 'Artix Linux (UKI)')
+            fi
+
             log_info "Creating EFI boot entry for UKI..."
             artix-chroot /mnt efibootmgr --create --disk "${esp_disk}" --part "${esp_part}" \
                 --label 'Artix Linux (UKI)' \
@@ -294,6 +308,17 @@ configure_bootloader() {
                 sb_key=$(tui_input "Secure Boot" "Path to DB.key (on target):" "/etc/secureboot/DB.key")
                 sb_cert=$(tui_input "Secure Boot" "Path to DB.crt (on target):" "/etc/secureboot/DB.crt")
                 if [[ -f "/mnt${sb_key}" && -f "/mnt${sb_cert}" ]]; then
+                    log_info "Removing stale signed UKI boot entries on target ESP..."
+                    if [[ -n "${target_esp_guid}" ]]; then
+                        while IFS= read -r line; do
+                            if [[ "${line}" == *"Artix Linux (UKI Signed)"* ]] && [[ "${line}" == *"${target_esp_guid}"* ]]; then
+                                local bootnum="${line#Boot}"
+                                bootnum="${bootnum%% *}"
+                                [[ -n "${bootnum}" ]] && artix-chroot /mnt efibootmgr -b "${bootnum}" -B 2>/dev/null || true
+                            fi
+                        done < <(efibootmgr -v 2>/dev/null | grep -i 'Artix Linux (UKI Signed)')
+                    fi
+
                     artix-chroot /mnt sbsign --key "${sb_key}" --cert "${sb_cert}" \
                         --output "/boot/efi/EFI/Linux/artix-${uki_kver}-signed.efi" \
                         "/boot/efi/EFI/Linux/artix-${uki_kver}.efi" || die "sbsign failed"

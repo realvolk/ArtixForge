@@ -288,12 +288,33 @@ EOF
 
 
     local init="$(state_get INIT openrc)"
+    local use_luks use_lvm
+    use_luks="$(state_get USE_LUKS no)"
+    use_lvm="$(state_get USE_LVM no)"
 
-    if [[ "$(state_get USE_LVM no)" == "yes" ]]; then
-        log_info "Adding LVM hook to mkinitcpio..."
-        if ! artix-chroot /mnt grep -q 'lvm2' /etc/mkinitcpio.conf; then
-            artix-chroot /mnt sed -i '/^HOOKS=/s/\(block\)/\1 lvm2/' /etc/mkinitcpio.conf
+    if [[ "${use_luks}" == "yes" || "${use_lvm}" == "yes" ]]; then
+        log_info "Configuring initramfs storage hooks via drop-in..."
+
+        local hooks=(base udev autodetect microcode modconf kms keyboard keymap consolefont block)
+
+        if [[ "${use_luks}" == "yes" ]]; then
+            hooks+=(encrypt)
         fi
+        if [[ "${use_lvm}" == "yes" ]]; then
+            hooks+=(lvm2)
+        fi
+
+        hooks+=(filesystems fsck)
+
+        mkdir -p /mnt/etc/mkinitcpio.conf.d
+        cat > /mnt/etc/mkinitcpio.conf.d/artixforge-storage.conf <<EOF
+HOOKS=(${hooks[*]})
+EOF
+
+        log_info "Storage hooks: ${hooks[*]}"
+    fi
+
+    if [[ "${use_lvm}" == "yes" ]]; then
         log_info "Enabling LVM boot service..."
         case "${init}" in
             dinit) enable_service_boot lvm2 2>/dev/null || warn_collect "lvm2 service not found for dinit — LVM may need manual activation" ;;
@@ -301,11 +322,7 @@ EOF
         esac
     fi
 
-    if [[ "$(state_get USE_LUKS no)" == "yes" ]]; then
-        log_info "Adding encrypt hook to mkinitcpio..."
-        if ! artix-chroot /mnt grep -q 'encrypt' /etc/mkinitcpio.conf; then
-            artix-chroot /mnt sed -i '/^HOOKS=/s/\(block\)/\1 encrypt/' /etc/mkinitcpio.conf
-        fi
+    if [[ "${use_luks}" == "yes" ]]; then
         log_info "Enabling LUKS boot services..."
         case "${init}" in
             dinit)
@@ -316,6 +333,11 @@ EOF
                 enable_service_boot device-mapper 2>/dev/null || warn_collect "device-mapper service not found for ${init}"
                 ;;
         esac
+    fi
+
+    if [[ "${use_luks}" == "yes" || "${use_lvm}" == "yes" ]]; then
+        log_info "Regenerating initramfs with storage hooks..."
+        artix-chroot /mnt mkinitcpio -P || die "mkinitcpio failed after storage hook configuration"
     fi
 
     if ! grep -q 'virtio_blk' /mnt/etc/mkinitcpio.conf 2>/dev/null; then
