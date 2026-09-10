@@ -242,23 +242,17 @@ _anvil_diff_recipe() {
     local name="${1}" old_file="${2}" new_file="${3}"
 
     if [[ ! -f "${old_file}" ]]; then
-        _filly_send '{"widget":"msg","params":{"title":"New Recipe: '"${name}"'","message":"This is a new recipe. No diff available."}}' >/dev/null
+        tui_msg "New Recipe: ${name}" "This recipe was added in this update."
         return 0
     fi
 
-    local old_content new_content
-    old_content=$(cat "${old_file}" | sed 's/"/\\"/g' | tr '\n' ' ')
-    new_content=$(cat "${new_file}" | sed 's/"/\\"/g' | tr '\n' ' ')
+    local diff_output
+    diff_output=$(diff -u "${old_file}" "${new_file}" 2>/dev/null || true)
+    [[ -z "${diff_output}" ]] && diff_output="(no textual differences)"
 
-    local left_widget right_widget
-    left_widget=$(printf '{"widget":"msg","params":{"title":"Old: %s","message":"%s"}}' "${name}" "${old_content}")
-    right_widget=$(printf '{"widget":"msg","params":{"title":"New: %s","message":"%s"}}' "${name}" "${new_content}")
-
-    local diff_json
-    diff_json=$(printf '{"widget":"split_panes","params":{"orientation":"horizontal","first":%s,"second":%s}}' \
-        "${left_widget}" "${right_widget}")
-
-    "${FILLY_BIN}" oneshot --input <(printf '%s\n' "${diff_json}") 2>/dev/null >/dev/null
+    tui_msg "Recipe Diff: ${name}" "\`\`\`
+${diff_output}
+\`\`\`"
 }
 
 upgrade_anvil() {
@@ -348,7 +342,7 @@ upgrade_anvil() {
                 local new_file="${recipe_dir}/${name}"
 
                 if [[ ${is_new} -eq 1 ]]; then
-                    _filly_send '{"widget":"msg","params":{"title":"New Recipe: '"${name}"'","message":"This recipe was added in this update."}}' >/dev/null
+                    tui_msg "New Recipe: ${name}" "This recipe was added in this update."
                 elif [[ -f "${old_file}" && -f "${new_file}" ]]; then
                     _anvil_diff_recipe "${name}" "${old_file}" "${new_file}"
                 fi
@@ -621,7 +615,7 @@ anvil_build_interactive() {
     done <<< "${configure_help}"
 
     local selected
-    selected=$(_filly_result '{"widget":"checklist","params":{"title":"Configure Options: '"${pkg}"'","message":"Select features to enable","choices":'"$(printf '%s\n' "${options[@]}" | jq -R . | jq -s .)"'}}')
+    selected=$(tui_checklist "Configure Options: ${pkg}" "Select features to enable" "${options[@]}") || return 1
 
     local flag_file="${POWERUSER_DIR}/package.use/${pkg}"
     mkdir -p "$(dirname "${flag_file}")"
