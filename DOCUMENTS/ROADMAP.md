@@ -11,6 +11,9 @@ This roadmap is updated regularly based on:
 
 ## v9.?
 
+- Storage: LVM-on-LUKS resume path — mount ordering, custom VG name consistency
+- Storage: F2FS/XFS creation logic consolidated into shared helpers
+- Storage: dead-code cleanup in XFS mkfs branch
 - Migration engine: all 16 init pairs tested
 - Migration engine: systemd→Artix full migration tested
 - Migration engine: custom service detection and backup audited
@@ -45,3 +48,4 @@ Ideas under consideration, construction or already being worked on with no real 
 - ARM and RISC-V(?) architecture support
 - Extras category grouping
 - Community recipe promotion workflow (COMMUNITY → OFFICIAL)
+- Storage: new layout strategies beyond standard LVM-on-LUKS
