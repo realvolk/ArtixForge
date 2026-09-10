@@ -48,7 +48,7 @@ ata_migrate_main() {
     target_init="$(state_get INIT '')"
     aur_helper="$(state_get ATA_AUR_HELPER '')"
     backup_dir="$(state_get MIGRATION_BACKUP_DIR '')"
-    has_homed=0
+    has_homed="$(state_get ATA_HAS_HOMED 0)"
     de="$(state_get WM_DE none)"
 
     local resolv_backup=""
@@ -68,6 +68,7 @@ ata_migrate_main() {
             target_init="$(state_get INIT '')"
             aur_helper="$(state_get ATA_AUR_HELPER '')"
             backup_dir="$(state_get MIGRATION_BACKUP_DIR '')"
+            has_homed="$(state_get ATA_HAS_HOMED 0)"
             de="$(state_get WM_DE none)"
         else
             log_info "Starting fresh – removing partial state..."
@@ -79,6 +80,7 @@ ata_migrate_main() {
             target_init=""
             aur_helper=""
             de="none"
+            has_homed=0
         fi
     fi
 
@@ -94,33 +96,33 @@ ata_migrate_main() {
 "This will convert your Arch Linux system to Artix.
 
 WHAT CAN BE MIGRATED AUTOMATICALLY:
-  ✓ Packages (with version mismatch warnings)
-  ✓ Desktop environment and display manager
-  ✓ User files and home directories
-  ✓ System configs (/etc/fstab, /etc/hostname, locale)
-  ✓ Enabled system services → init equivalents
-  ✓ WiFi passwords and network configs
-  ✓ SSH keys and host configs
-  ✓ Firewall rules and cron jobs
-  ✓ Pacman hooks (systemd-dependent ones disabled)
-  ✓ PAM modules (pam_systemd → pam_elogind)
-  ✓ mkinitcpio hooks (systemd → udev/encrypt)
-  ✓ systemd timers → cron (OnCalendar + basic monotonic)
-  ✓ crypttab → kernel parameters
-  ✓ DNS resolver fix
-  ✓ systemd-boot → GRUB (auto-install)
-  ✓ Flatpaks (remotes + apps preserved)
-  ✓ DKMS modules (auto-rebuild)
-  ✓ systemd-homed users (with password unlock)
-  ✓ systemd --user services → autostart
-  ✓ AUR packages (attempt batch reinstall)
+  Packages (with version mismatch warnings)
+  Desktop environment and display manager
+  User files and home directories
+  System configs (/etc/fstab, /etc/hostname, locale)
+  Enabled system services → init equivalents
+  WiFi passwords and network configs
+  SSH keys and host configs
+  Firewall rules and cron jobs
+  Pacman hooks (systemd-dependent ones disabled)
+  PAM modules (pam_systemd → pam_elogind)
+  mkinitcpio hooks (systemd → udev/encrypt)
+  systemd timers → cron (OnCalendar + basic monotonic)
+  crypttab → kernel parameters
+  DNS resolver fix
+  systemd-boot → GRUB (auto-install)
+  Flatpaks (remotes + apps preserved)
+  DKMS modules (auto-rebuild)
+  systemd-homed users (with password unlock)
+  systemd --user services → autostart
+  AUR packages (attempt batch reinstall)
 
 WHAT WILL BE BACKED UP:
-  • All of /home
-  • /etc, /boot, /usr/local
-  • Pacman database
-  • System journal (text export)
-  • Everything to /arch-migration-backup-YYYYMMDD-HHMMSS"
+  All of /home (excluding caches)
+  /etc, /boot, /usr/local
+  Pacman database
+  System journal (text export)
+  Everything to /arch-migration-backup-YYYYMMDD-HHMMSS"
 
         if ! tui_yesno "Begin Migration" "This is destructive. Proceed?"; then
             return 0
@@ -152,6 +154,7 @@ WHAT WILL BE BACKED UP:
             has_homed=1
             tui_msg "systemd-homed Detected" "Users with systemd-homed were found.\n\nTheir home directories will be unlocked and migrated to standard /home if you provide their passwords."
         fi
+        state_set ATA_HAS_HOMED "${has_homed}"
 
         de=$(state_get WM_DE none)
         local aur_count flatpak_count snap_count
@@ -370,9 +373,9 @@ Backup: ${backup_dir}
 Journal: ${backup_dir}/journal-full.txt
 
 AFTER REBOOT:
-  • Check services with your init's service manager
-  • Verify DNS in /etc/resolv.conf
-  • AUR packages: check ${backup_dir}/lists/ata-aur.txt"
+  Check services with your init's service manager
+  Verify DNS in /etc/resolv.conf
+  AUR packages: check ${backup_dir}/lists/ata-aur.txt"
 
     if tui_yesno "Reboot" "Reboot now?"; then
         reboot

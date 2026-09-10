@@ -36,7 +36,7 @@ stage_chroot() {
     else
         log_info "BusyBox init is source-built — skipping pacman check"
         if ! artix-chroot /mnt which busybox &>/dev/null; then
-            log_warn "BusyBox binary not found in target — init may have failed to build"
+            warn_collect "BusyBox binary not found in target — init may have failed to build"
         fi
     fi
 

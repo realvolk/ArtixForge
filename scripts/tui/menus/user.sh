@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Legacy
 tui_select_username() {
     local u
     u=$(tui_input "Username" "Enter username:" "artix") || return 1
@@ -99,15 +98,17 @@ tui_remove_user() {
     if tui_yesno "Confirm Removal" "Remove $(state_get "USER_${idx}_NAME" "this user")?"; then
         for ((i=idx; i<${USER_COUNT}; i++)); do
             local next=$((i+1))
-            state_set "USER_${i}_NAME"   "$(state_get "USER_${next}_NAME" "")"
-            state_set "USER_${i}_PASS"   "$(state_get "USER_${next}_PASS" "")"
-            state_set "USER_${i}_SHELL"  "$(state_get "USER_${next}_SHELL" "/bin/bash")"
-            state_set "USER_${i}_GROUPS" "$(state_get "USER_${next}_GROUPS" "wheel,audio,video,storage")"
-            state_set "USER_${i}_SUDO"   "$(state_get "USER_${next}_SUDO" "yes")"
+            state_set "USER_${i}_NAME"     "$(state_get "USER_${next}_NAME" "")"
+            state_set "USER_${i}_PASS"     "$(state_get "USER_${next}_PASS" "")"
+            state_set "USER_${i}_SHELL"    "$(state_get "USER_${next}_SHELL" "/bin/bash")"
+            state_set "USER_${i}_GROUPS"   "$(state_get "USER_${next}_GROUPS" "wheel,audio,video,storage")"
+            state_set "USER_${i}_SUDO"     "$(state_get "USER_${next}_SUDO" "yes")"
+            state_set "USER_${i}_DE"       "$(state_get "USER_${next}_DE" "")"
+            state_set "USER_${i}_DOTFILES" "$(state_get "USER_${next}_DOTFILES" "")"
         done
         USER_COUNT=$((USER_COUNT - 1))
         state_set USER_COUNT "${USER_COUNT}"
-        for key in NAME PASS SHELL GROUPS SUDO; do
+        for key in NAME PASS SHELL GROUPS SUDO DE DOTFILES; do
             state_set "USER_${USER_COUNT}_${key}" ""
         done
         log_info "User ${idx} removed."
@@ -149,11 +150,25 @@ tui_edit_user_dialog() {
     sudo_choice=$(tui_menu "Sudo Access" "Grant sudo privileges to ${name}?" "Yes" "No") || sudo_choice="Yes"
     [[ "${sudo_choice}" == "Yes" ]] && sudo_choice="yes" || sudo_choice="no"
 
-    state_set "USER_${idx}_NAME"   "${name}"
-    state_set "USER_${idx}_PASS"   "${pass}"
-    state_set "USER_${idx}_SHELL"  "${shell}"
-    state_set "USER_${idx}_GROUPS" "${groups}"
-    state_set "USER_${idx}_SUDO"   "${sudo_choice}"
+    local current_de="$(state_get "USER_${idx}_DE" "")"
+    local de_choice
+    de_choice=$(tui_menu "User Desktop" "Select desktop for ${name} (or inherit system default):" \
+        "Inherit system default" \
+        "kde" "xfce4" "lxqt" "lxde" "mango" "hyprland" "niri" "sway" \
+        "i3wm" "dwm" "vxwm" "icewm" "cinnamon" "budgie" "moksha" "cosmic" "none") || de_choice="Inherit system default"
+    [[ "${de_choice}" == "Inherit system default" ]] && de_choice=""
+
+    local current_dotfiles="$(state_get "USER_${idx}_DOTFILES" "")"
+    local dotfiles
+    dotfiles=$(tui_input "Dotfiles Repo" "Enter dotfiles repo URL for ${name} (optional):" "${current_dotfiles}") || dotfiles="${current_dotfiles}"
+
+    state_set "USER_${idx}_NAME"     "${name}"
+    state_set "USER_${idx}_PASS"     "${pass}"
+    state_set "USER_${idx}_SHELL"    "${shell}"
+    state_set "USER_${idx}_GROUPS"   "${groups}"
+    state_set "USER_${idx}_SUDO"     "${sudo_choice}"
+    state_set "USER_${idx}_DE"       "${de_choice}"
+    state_set "USER_${idx}_DOTFILES" "${dotfiles}"
 
     if [[ "${mode}" == "new" ]]; then
         USER_COUNT="${idx}"

@@ -4,73 +4,19 @@ set -Eeuo pipefail
 install_extras() {
     local selected=" ${EXTRAS:-} " pkgs=() init="${INIT:-openrc}"
 
-    local -a CURATED_NAMES=(
-        git flatpak firewalld bluez zram-tools usb_modeswitch
-        nano vim neovim micro helix
-        firefox chromium qutebrowser
-        ranger lf nnn thunar
-        alacritty kitty foot
-        fastfetch fzf zoxide starship eza tmux
-        btop htop nvtop
-        mpv feh
-        rsvc swaybg swaylock waybar wofi fuzzel hyprpaper
-    )
+    [[ -z "${EXTRAS:-}" ]] && return 0
 
-    local curated_str=" ${CURATED_NAMES[*]} "
+    read -ra pkgs <<< "${EXTRAS}"
 
-    [[ "${selected}" == *" git "* ]] && pkgs+=(git base-devel)
+    [[ ${#pkgs[@]} -eq 0 ]] && return 0
 
-    [[ "${selected}" == *" flatpak "* ]] && pkgs+=(flatpak)
-    [[ "${selected}" == *" firewalld "* ]] && pkgs+=(firewalld "firewalld-${init}")
-    [[ "${selected}" == *" bluez "* ]] && pkgs+=(bluez bluez-utils "bluez-${init}")
-    [[ "${selected}" == *" zram-tools "* ]] && pkgs+=(zramen "zramen-${init}")
-    [[ "${selected}" == *" usb_modeswitch "* ]] && pkgs+=(usb_modeswitch)
+    log_info "Installing extras: ${pkgs[*]}"
+    pacman -S --noconfirm --needed "${pkgs[@]}"
 
-    local -a SIMPLE=(
-        nano vim neovim micro helix
-        firefox chromium qutebrowser
-        ranger lf nnn thunar
-        alacritty kitty foot
-        fastfetch fzf zoxide starship eza tmux
-        btop htop nvtop
-        mpv feh
-    )
-    for pkg in "${SIMPLE[@]}"; do
-        [[ "${selected}" == *" ${pkg} "* ]] && pkgs+=("${pkg}")
-    done
-
-    if [[ "${selected}" == *" rsvc "* ]]; then
-        if [[ "${init}" != 'runit' ]]; then
-            log_warn "rsvc only supported on runit systems. Skipping."
-        else
-            [[ "${selected}" == *" git "* ]] || pkgs+=(git base-devel)
-        fi
-    fi
-
-    local -a extra_tokens
-    read -ra extra_tokens <<< "${EXTRAS:-}"
-    for token in "${extra_tokens[@]}"; do
-        [[ -z "${token}" || " ${curated_str} " == *" ${token} "* ]] && continue
-        pkgs+=("${token}")
-    done
-
-    if [[ ${#pkgs[@]} -eq 0 ]]; then return 0; fi
-
-    local -a deduped
-    mapfile -t deduped < <(printf '%s\n' "${pkgs[@]}" | sort -u)
-
-    log_info "Installing extras..."
-    pacman -S --noconfirm --needed "${deduped[@]}"
-
-    [[ "${selected}" == *" firewalld "* ]] && enable_service firewalld
-    [[ "${selected}" == *" bluez "* ]] && enable_service bluetoothd
-    [[ "${selected}" == *" zram-tools "* ]] && enable_service zramen
-
-    if [[ "${selected}" == *" rsvc "* && "${init}" == 'runit' ]]; then
-        log_info "Installing rsvc..."
-        git clone https://github.com/SashexSRB/rsvc /tmp/rsvc || true
-        ( cd /tmp/rsvc && make && make install )
-    fi
+    # Enable services for known packages
+    [[ " ${EXTRAS} " == *" firewalld "* ]] && enable_service firewalld
+    [[ " ${EXTRAS} " == *" bluez "* ]] && { enable_service bluetoothd; pacman -S --noconfirm --needed bluez-utils "bluez-${init}"; }
+    [[ " ${EXTRAS} " == *" zram-tools "* || " ${EXTRAS} " == *" zramen "* ]] && { enable_service zramen; pacman -S --noconfirm --needed "zramen-${init}"; }
 
     log_info "Extras installation complete."
 }

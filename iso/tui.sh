@@ -171,35 +171,10 @@ start_iso_build() {
     if tui_yesno "Additional Packages" "Would you like to add extra packages to the ISO?"; then
         local extra_pkgs
         extra_pkgs=$(tui_checklist "Extra Packages" "Select additional packages to include:" \
-            "git" \
-            "flatpak" \
-            "fastfetch" \
-            "firewalld" \
-            "bluez" \
-            "zram-tools" \
-            "fzf" \
-            "zoxide" \
-            "starship" \
-            "eza" \
-            "btop" \
-            "htop" \
-            "nvtop" \
-            "tmux" \
-            "neovim" \
-            "micro" \
-            "helix" \
-            "firefox" \
-            "chromium" \
-            "qutebrowser" \
-            "ranger" \
-            "lf" \
-            "nnn" \
-            "thunar" \
-            "alacritty" \
-            "kitty" \
-            "foot" \
-            "mpv" \
-            "feh") || true
+            "git" "flatpak" "fastfetch" "firewalld" "bluez" "zram-tools" \
+            "fzf" "zoxide" "starship" "eza" "btop" "htop" "nvtop" "tmux" \
+            "neovim" "micro" "helix" "firefox" "chromium" "qutebrowser" \
+            "ranger" "lf" "nnn" "thunar" "alacritty" "kitty" "foot" "mpv" "feh") || true
         extra_pkgs=$(echo "${extra_pkgs}" | tr '\n' ' ')
         if [[ -n "${extra_pkgs}" ]]; then
             state_set ISO_EXTRA_PACKAGES "${extra_pkgs}"

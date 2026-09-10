@@ -2,22 +2,12 @@
 set -Eeuo pipefail
 
 partition_disk() {
-    local disk swap_enabled='no' swap_size='0'
+    local disk swap_type swap_size
     disk="$(state_get DISK)"
     [[ -n "${disk}" ]] || die 'no disk selected'
     [[ -b "${disk}" ]] || die 'invalid disk device'
-
-    if tui_yesno "Swap Partition" "Would you like to create a swap partition?"; then
-        swap_enabled='yes'
-        local mem_gib=$(awk '/MemTotal/ {printf "%d", ($2 / 1024 / 1024) + 1}' /proc/meminfo)
-        if [[ "${mem_gib}" -le 8 ]]; then swap_size='4G'
-        elif [[ "${mem_gib}" -le 16 ]]; then swap_size='8G'
-        else swap_size='16G'; fi
-        swap_size=$(tui_input "Swap Size" $'Recommended swap size: '"${swap_size}"$'\n\nEnter desired swap size:' "${swap_size}")
-        [[ -n "${swap_size}" ]] || die 'invalid swap size'
-    fi
-    state_set SWAP_ENABLED "${swap_enabled}"
-    state_set SWAP_SIZE "${swap_size}"
+    swap_type="$(state_get SWAP_ENABLED none)"
+    swap_size="$(state_get SWAP_SIZE 0)"
 
     log_info "Preparing disk ${disk}..."
     swapoff -a 2>/dev/null || true
@@ -37,12 +27,16 @@ partition_disk() {
 
     local fs_type
     fs_type="$(state_get FS_TYPE ext4)"
+    local use_swap_partition="no"
+    if [[ "${swap_type}" == "partition" ]]; then
+        use_swap_partition="yes"
+    fi
 
     if [[ "${ARTIX_BOOT_MODE:-uefi}" == "bios" ]]; then
         log_info "Creating MBR partition layout..."
         parted -s "${disk}" mklabel msdos
         parted -s "${disk}" mkpart primary 1MiB 2MiB
-        if [[ "${swap_enabled}" == 'yes' ]]; then
+        if [[ "${use_swap_partition}" == "yes" ]]; then
             parted -s "${disk}" mkpart primary linux-swap 2MiB "${swap_size}"
             parted -s "${disk}" mkpart primary "${swap_size}" 100%
         else
@@ -52,7 +46,7 @@ partition_disk() {
         udevadm settle
         sleep 2
 
-        if [[ "${swap_enabled}" == 'yes' ]]; then
+        if [[ "${use_swap_partition}" == "yes" ]]; then
             [[ -b "$(get_partition_name "${disk}" 2)" ]] || die 'swap partition not created'
             [[ -b "$(get_partition_name "${disk}" 3)" ]] || die 'root partition not created'
         else
@@ -63,7 +57,7 @@ partition_disk() {
 
     log_info "Creating GPT partition layout..."
     sgdisk -n 1:0:+1024M -t 1:ef00 "${disk}"
-    if [[ "${swap_enabled}" == 'yes' ]]; then
+    if [[ "${use_swap_partition}" == "yes" ]]; then
         sgdisk -n 2:0:+"${swap_size}" -t 2:8200 "${disk}"
         sgdisk -n 3:0:0 -t 3:8300 "${disk}"
     else
@@ -76,7 +70,7 @@ partition_disk() {
     blockdev --rereadpt "${disk}" 2>/dev/null || true
 
     [[ -b "$(get_partition_name "${disk}" 1)" ]] || die 'EFI partition not created'
-    if [[ "${swap_enabled}" == 'yes' ]]; then
+    if [[ "${use_swap_partition}" == "yes" ]]; then
         [[ -b "$(get_partition_name "${disk}" 2)" ]] || die 'swap partition not created'
         [[ -b "$(get_partition_name "${disk}" 3)" ]] || die 'root partition not created'
     else
@@ -86,7 +80,7 @@ partition_disk() {
     if [[ "$(state_get USE_LVM no)" == "yes" ]]; then
         log_info "Setting up LVM..."
         local root_part
-        if [[ "${swap_enabled}" == 'yes' ]]; then
+        if [[ "${use_swap_partition}" == "yes" ]]; then
             root_part=$(get_partition_name "${disk}" 3)
         else
             root_part=$(get_partition_name "${disk}" 2)

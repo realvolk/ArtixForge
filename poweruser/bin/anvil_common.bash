@@ -77,3 +77,24 @@ info_package() {
     local pkg="${1}"
     grep "^${pkg}|" "${POWERUSER_DIR}/db/local.db" || echo "No info for ${pkg}"
 }
+
+_recipe_git_init() {
+    local recipe_dir="${POWERUSER_DIR}/recipes"
+    if [[ ! -d "${recipe_dir}/.git" ]]; then
+        cd "${recipe_dir}"
+        git init
+        git config user.email "anvil@localhost"
+        git config user.name "anvil"
+        git add -A
+        git commit -m "Initial recipe state" 2>/dev/null || true
+    fi
+}
+
+_recipe_git_commit() {
+    local recipe_dir="${POWERUSER_DIR}/recipes"
+    local msg="${1:-recipe update}"
+    [[ -d "${recipe_dir}/.git" ]] || return 0
+    cd "${recipe_dir}"
+    git add -A
+    git commit -m "${msg}" 2>/dev/null || true
+}

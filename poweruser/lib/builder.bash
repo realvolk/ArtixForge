@@ -6,7 +6,8 @@ SOURCES_DIR="${POWERUSER_BUILD_DIR}/sources"
 WORK_DIR="${POWERUSER_BUILD_DIR}/work"
 ARTIFACTS_DIR="${POWERUSER_BUILD_DIR}/artifacts"
 LOGS_DIR="${POWERUSER_DIR}/build/logs"
-mkdir -p "${SOURCES_DIR}" "${WORK_DIR}" "${ARTIFACTS_DIR}" "${LOGS_DIR}"
+STATS_DIR="${LOGS_DIR}/stats"
+mkdir -p "${SOURCES_DIR}" "${WORK_DIR}" "${ARTIFACTS_DIR}" "${LOGS_DIR}" "${STATS_DIR}"
 BASE_DIR="${BASE_DIR:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
 source "${POWERUSER_DIR}/lib/validate.bash"
@@ -17,19 +18,19 @@ build_package() {
     local log_file="${LOGS_DIR}/${recipe_name}.log"
     local start_time end_time duration
 
-    load_recipe "${recipe_name}"
+    resolve_pkg_flags "${recipe_name}" || die "Failed to resolve flags for ${recipe_name}"
+    resolve_flag_conflicts || die "Flag conflicts in ${recipe_name}"
 
-    local -a selected_features=()
-    local feature_var="POWERUSER_FEATURES_${pkgname//-/_}"
-    local saved_features
-    saved_features="$(state_get "${feature_var}" "")"
-    if [[ -n "${saved_features}" ]]; then
-        read -ra selected_features <<< "${saved_features}"
+    local dep_string
+    dep_string=$(printf '%s\n' "${depends[@]}" "${makedepends[@]}" | sort -u | tr '\n' ' ')
+
+    local patch_string=""
+    if [[ -d "/etc/anvil/patches/${recipe_name}" ]]; then
+        patch_string=$(find "/etc/anvil/patches/${recipe_name}" -name '*.patch' -type f | sort | xargs sha256sum 2>/dev/null | sha256sum | cut -d' ' -f1)
     fi
-    export selected_features
 
     local flags_h
-    flags_h="$(flags_hash)"
+    flags_h="$(flags_hash "${dep_string}" "${patch_string}")"
     if grep -q "^${pkgname}|${pkgver}-${pkgrel}|${flags_h}|" "${POWERUSER_DIR}/db/local.db" 2>/dev/null; then
         log_info "${pkgname}-${pkgver} already built — skipping"
         return 0
@@ -44,10 +45,6 @@ build_package() {
         log_info "  Installing build dependencies: ${makedepends[*]}"
         pacman -S --noconfirm --needed "${makedepends[@]}" >> "${log_file}" 2>&1 || {
             log_error "Failed installing deps on live system"
-            return 1
-        }
-        artix-chroot /mnt pacman -S --noconfirm --needed "${makedepends[@]}" >> "${log_file}" 2>&1 || {
-            log_error "Failed installing deps in target"
             return 1
         }
     fi
@@ -87,6 +84,19 @@ build_package() {
         fi
     fi
 
+    local patch_dir="/etc/anvil/patches/${recipe_name}"
+    if [[ -d "${patch_dir}" ]]; then
+        log_info "  Applying user patches for ${recipe_name}..."
+        local patch_file
+        for patch_file in "${patch_dir}"/*.patch; do
+            [[ -f "${patch_file}" ]] || continue
+            log_info "    Applying $(basename "${patch_file}")..."
+            if ! ( cd "${pkg_work}/src" && patch -Np1 < "${patch_file}" ) >> "${log_file}" 2>&1; then
+                log_warn "    Patch $(basename "${patch_file}") failed to apply cleanly"
+            fi
+        done
+    fi
+
     if declare -f configure >/dev/null 2>&1; then
         log_info "  Configuring ${pkgname}..."
         if ! ( cd "${pkg_work}" && configure ) >> "${log_file}" 2>&1; then
@@ -95,8 +105,18 @@ build_package() {
         fi
     fi
 
+    if [[ "${use_ccache:-false}" == "true" ]]; then
+        command -v ccache &>/dev/null || pacman -S --noconfirm --needed ccache
+        export CC="ccache gcc"
+        export CXX="ccache g++"
+        export CCACHE_DIR="${POWERUSER_DIR}/build/ccache"
+        mkdir -p "${CCACHE_DIR}"
+        log_info "  ccache enabled (${CCACHE_DIR})"
+    fi
+
     log_info "  Building ${pkgname}..."
-    if ! ( cd "${pkg_work}" && build ) >> "${log_file}" 2>&1; then
+    if ! /usr/bin/time -v -o "${STATS_DIR}/${pkgname}.stats" \
+        bash -c 'cd "${1}" && build' _ "${pkg_work}" >> "${log_file}" 2>&1; then
         handle_build_failure "${recipe_name}" "${log_file}" "${pkg_work}"
         return $?
     fi
@@ -113,6 +133,65 @@ build_package() {
         handle_build_failure "${recipe_name}" "${log_file}" "${pkg_work}"
         return $?
     fi
+
+    if [[ -n "${sub_packages:-}" ]]; then
+        local sub
+        for sub in "${sub_packages[@]}"; do
+            if declare -f "package_${sub}" >/dev/null 2>&1; then
+                log_info "  Packaging sub-package: ${sub}"
+                local sub_destdir="${pkg_work}/pkg-${sub}"
+                mkdir -p "${sub_destdir}"
+                if ! ( cd "${pkg_work}" && PKG_DESTDIR="${sub_destdir}" "package_${sub}" ) >> "${log_file}" 2>&1; then
+                    handle_build_failure "${recipe_name}" "${log_file}" "${pkg_work}"
+                    return $?
+                fi
+                tar -caf "${ARTIFACTS_DIR}/${sub}-${pkgver}-${pkgrel}-x86_64.pkg.tar.zst" -C "${sub_destdir}" . 2>>"${log_file}" || {
+                    log_warn "Failed to create artifact for ${sub}"
+                }
+                rsync -a --keep-dirlinks "${sub_destdir}/" /mnt/ 2>>"${log_file}" || true
+                local sub_file_list
+                sub_file_list=$(cd "${sub_destdir}" && find . -type f -o -type l | sed 's|^\./||' | sort | tr '\n' ',' | sed 's/,$//')
+                printf '%s|%s-%s|%s|%s|%s|%s\n' \
+                    "${sub}" "${pkgver}" "${pkgrel}" "${flags_h}" "$(date -I)" "${selected_features[*]}" "${sub_file_list}" \
+                    >> "${POWERUSER_DIR}/db/local.db"
+            fi
+        done
+    fi
+
+    if [[ "${ANVIL_SAFETY_MODE:-}" == "strict" ]]; then
+        log_info "  Running safety checks..."
+        local failed=0
+        while IFS= read -r -d '' binary; do
+            if [[ " ${GLOBAL_FEATURES:-} " =~ " pie " ]]; then
+                readelf -h "${binary}" 2>/dev/null | grep -q 'Type:.*DYN' || {
+                    log_warn "  PIE missing: ${binary}"
+                    failed=1
+                }
+            fi
+            if [[ " ${GLOBAL_FEATURES:-} " =~ " relro " ]]; then
+                readelf -l "${binary}" 2>/dev/null | grep -q 'GNU_RELRO' || {
+                    log_warn "  RELRO missing: ${binary}"
+                    failed=1
+                }
+            fi
+            if [[ " ${GLOBAL_FEATURES:-} " =~ " stack-protector " ]]; then
+                readelf -s "${binary}" 2>/dev/null | grep -q '__stack_chk_fail' || {
+                    log_warn "  Stack protector missing: ${binary}"
+                    failed=1
+                }
+            fi
+        done < <(find "${PKG_DESTDIR}" -type f -executable -print0 2>/dev/null)
+
+        if [[ ${failed} -eq 1 ]]; then
+            die "Safety checks failed. Rebuild with correct flags or disable ANVIL_SAFETY_MODE."
+        fi
+        log_info "  Safety checks passed."
+    fi
+
+    log_info "  Creating package artifact..."
+    tar -caf "${ARTIFACTS_DIR}/${pkgname}-${pkgver}-${pkgrel}-x86_64.pkg.tar.zst" -C "${PKG_DESTDIR}" . 2>>"${log_file}" || {
+        log_warn "Failed to create artifact tarball (non-fatal)"
+    }
 
     log_info "  Installing ${pkgname}..."
     if [[ "${pkgname}" == "linux-custom" ]]; then
@@ -149,9 +228,11 @@ PRESET
         fi
     fi
 
-    flags_h="$(flags_hash)"
-    printf '%s|%s-%s|%s|%s|%s\n' \
-        "${pkgname}" "${pkgver}" "${pkgrel}" "${flags_h}" "$(date -I)" "${selected_features[*]}" \
+    local file_list
+    file_list=$(cd "${PKG_DESTDIR}" && find . -type f -o -type l | sed 's|^\./||' | sort | tr '\n' ',' | sed 's/,$//')
+
+    printf '%s|%s-%s|%s|%s|%s|%s\n' \
+        "${pkgname}" "${pkgver}" "${pkgrel}" "${flags_h}" "$(date -I)" "${selected_features[*]}" "${file_list}" \
         >> "${POWERUSER_DIR}/db/local.db"
 
     end_time=$(date +%s)
@@ -159,6 +240,63 @@ PRESET
     printf '%s|%s|%d\n' "${pkgname}" "success" "${duration}" >> "${LOGS_DIR}/timing.log"
     log_info "  ${pkgname} — done (${duration}s)"
     return 0
+}
+
+build_queue_parallel() {
+    local max_jobs="${1:-$(nproc)}"
+    local -A done_pkgs=()
+    local -A running_pids=()
+    local pkg
+
+    while ! queue_all_done; do
+        local -a ready=()
+        while IFS='|' read -r pkg status; do
+            [[ "${status}" == "pending" ]] || continue
+            local deps_satisfied=1
+            load_recipe "${pkg}"
+            for dep in "${depends[@]}" "${makedepends[@]}"; do
+                [[ -n "${done_pkgs[${dep}]:-}" ]] && continue
+                pacman -Q "${dep}" &>/dev/null && continue
+                deps_satisfied=0
+                break
+            done
+            [[ ${deps_satisfied} -eq 1 ]] && ready+=("${pkg}")
+        done < "${QUEUE_DIR}/status.txt"
+
+        for pkg in "${ready[@]}"; do
+            if [[ ${#running_pids[@]} -ge ${max_jobs} ]]; then
+                break
+            fi
+            log_info "[${pkg}] Starting build (parallel, ${#running_pids[@]}/${max_jobs} running)..."
+            build_package "${pkg}" &
+            running_pids["${pkg}"]=$!
+        done
+
+        if [[ ${#running_pids[@]} -gt 0 ]]; then
+            local finished_pid
+            finished_pid=$(wait -n 2>/dev/null || true)
+            for pkg in "${!running_pids[@]}"; do
+                if [[ "${running_pids[${pkg}]}" == "${finished_pid}" ]]; then
+                    local rc=0
+                    wait "${finished_pid}" || rc=$?
+                    if [[ ${rc} -eq 0 ]]; then
+                        queue_mark "${pkg}" "done"
+                        done_pkgs["${pkg}"]=1
+                    else
+                        queue_mark "${pkg}" "failed"
+                        log_error "[${pkg}] Build failed"
+                    fi
+                    unset running_pids["${pkg}"]
+                    break
+                fi
+            done
+        fi
+    done
+
+    for pkg in "${!running_pids[@]}"; do
+        wait "${running_pids[${pkg}]}" || true
+        queue_mark "${pkg}" "failed"
+    done
 }
 
 handle_build_failure() {
@@ -301,4 +439,197 @@ fetch_sources() {
             log_warn "Checksum verification SKIPPED for ${filename} — source integrity NOT verified"
         fi
     done
+}
+
+build_package_isolated() {
+    local recipe_name="${1}"
+    local isolated_root="${POWERUSER_DIR}/build/isolated"
+    
+    log_info "Setting up isolated build environment..."
+    mkdir -p "${isolated_root}"
+    
+    if [[ ! -x "${isolated_root}/bin/sh" ]]; then
+        log_info "Bootstrapping minimal rootfs..."
+        basestrap "${isolated_root}" base base-devel bash pacman || die "Failed to bootstrap isolated rootfs"
+    fi
+    
+    resolve_pkg_flags "${recipe_name}" || die "Failed to resolve flags"
+    
+    local -a isolate_pkgs=("${makedepends[@]}")
+    if [[ "${use_ccache:-false}" == "true" ]]; then
+        isolate_pkgs+=(ccache)
+    fi
+    
+    if [[ ${#isolate_pkgs[@]} -gt 0 ]]; then
+        log_info "Installing build dependencies in isolated rootfs..."
+        artix-chroot "${isolated_root}" pacman -S --noconfirm --needed "${isolate_pkgs[@]}" || {
+            log_error "Failed to install dependencies in isolated rootfs"
+            return 1
+        }
+    fi
+    
+    mkdir -p "${isolated_root}/tmp/build/sources" "${isolated_root}/tmp/build/work" "${isolated_root}/tmp/build/pkg"
+    cp -a "${SOURCES_DIR}/." "${isolated_root}/tmp/build/sources/" 2>/dev/null || true
+    cp "${POWERUSER_DIR}/recipes/${recipe_name}.sh" "${isolated_root}/tmp/build/recipe.sh"
+    
+    for lib in common.sh flags.bash recipe.bash builder.bash validate.bash cache.bash; do
+        [[ -f "${POWERUSER_DIR}/lib/${lib}" ]] && cp "${POWERUSER_DIR}/lib/${lib}" "${isolated_root}/tmp/build/"
+    done
+    
+    log_info "Building ${recipe_name} in isolated environment..."
+    artix-chroot "${isolated_root}" bash -c "
+        export POWERUSER_DIR=/tmp/build
+        export BUILD_DIR=/tmp/build/work
+        export SOURCES_DIR=/tmp/build/sources
+        export PKG_DESTDIR=/tmp/build/pkg
+        export ARTIX_CFLAGS='${ARTIX_CFLAGS}'
+        export ARTIX_CXXFLAGS='${ARTIX_CXXFLAGS}'
+        export ARTIX_LDFLAGS='${ARTIX_LDFLAGS}'
+        export ARTIX_MAKEFLAGS='${ARTIX_MAKEFLAGS}'
+        export selected_features='${selected_features[*]}'
+        
+        source /tmp/build/common.sh
+        source /tmp/build/flags.bash
+        source /tmp/build/recipe.bash
+        source /tmp/build/builder.bash
+        
+        load_recipe /tmp/build/recipe.sh
+        fetch_sources /tmp/build/recipe.sh
+        
+        cd /tmp/build/work
+        [[ \"\$(type -t prepare)\" == 'function' ]] && prepare
+        [[ \"\$(type -t configure)\" == 'function' ]] && configure
+        build
+        [[ \"\$(type -t package)\" == 'function' ]] && package
+    " || {
+        log_error "Isolated build failed"
+        return 1
+    }
+    
+    if [[ -d "${isolated_root}/tmp/build/pkg" ]]; then
+        rsync -a --keep-dirlinks "${isolated_root}/tmp/build/pkg/" "${PKG_DESTDIR}/" 2>/dev/null || true
+        log_info "Isolated build artifacts copied to ${PKG_DESTDIR}"
+    fi
+    
+    log_info "Isolated build complete."
+}
+
+anvil_world_stage() {
+    local stage_dir="${1:-/nextroot}"
+    require_root
+
+    log_info "Building world into ${stage_dir}..."
+    mkdir -p "${stage_dir}"
+
+    local saved_mnt="${POWERUSER_BUILD_DIR}"
+    POWERUSER_BUILD_DIR="${stage_dir}/artix-poweruser"
+    SOURCES_DIR="${POWERUSER_BUILD_DIR}/sources"
+    WORK_DIR="${POWERUSER_BUILD_DIR}/work"
+    ARTIFACTS_DIR="${POWERUSER_BUILD_DIR}/artifacts"
+    mkdir -p "${SOURCES_DIR}" "${WORK_DIR}" "${ARTIFACTS_DIR}"
+
+    local world_file="${POWERUSER_DIR}/world"
+    local -a world_pkgs=()
+    while IFS= read -r pkg; do
+        [[ -n "${pkg}" && "${pkg}" != \#* ]] && world_pkgs+=("${pkg}")
+    done < "${world_file}"
+
+    local -a build_order
+    mapfile -t build_order < <(resolve_deps "${world_pkgs[@]}")
+
+    generate_queue "${build_order[@]}"
+
+    local pkg
+    while ! queue_all_done; do
+        pkg=$(queue_next)
+        [[ -n "${pkg}" ]] || break
+        log_info "[${pkg}] Building... ($(queue_remaining) remaining)"
+        resolve_pkg_flags "${pkg}"
+        local saved_destdir="${PKG_DESTDIR}"
+        PKG_DESTDIR="${stage_dir}"
+        build_package "${pkg}" && queue_mark "${pkg}" "done" || queue_mark "${pkg}" "failed"
+        PKG_DESTDIR="${saved_destdir}"
+    done
+
+    POWERUSER_BUILD_DIR="${saved_mnt}"
+
+    if [[ -f "${stage_dir}/boot/vmlinuz-linux-custom" ]]; then
+        log_info "Generating initramfs for staged system..."
+        mkdir -p "${stage_dir}/etc/mkinitcpio.d"
+        cp /etc/mkinitcpio.conf "${stage_dir}/etc/mkinitcpio.conf" 2>/dev/null || true
+        mkinitcpio -k "${stage_dir}/boot/vmlinuz-linux-custom" \
+            -c "${stage_dir}/etc/mkinitcpio.conf" \
+            -g "${stage_dir}/boot/initramfs-linux-custom.img" || log_warn "mkinitcpio failed"
+    fi
+
+    log_info "System staged at ${stage_dir}"
+}
+
+anvil_activate() {
+    local stage_dir="${1:-/nextroot}"
+    require_root
+    [[ -d "${stage_dir}/bin" ]] || die "No staged system found at ${stage_dir}"
+
+    if [[ "$(stat -f --format=%T / 2>/dev/null)" == "btrfs" ]]; then
+        log_info "BTRFS detected — performing atomic subvolume swap..."
+        local current_snap="/.snapshots/pre-anvil-$(date +%Y%m%d-%H%M%S)"
+        btrfs subvolume snapshot / "${current_snap}"
+        log_info "Current root snapshot saved to ${current_snap}"
+
+        rsync -a --delete --keep-dirlinks "${stage_dir}/" / || die "Rsync failed"
+        sync
+
+        log_info "Activation complete. Reboot to use the new system."
+        log_info "Rollback: btrfs subvolume set-default ${current_snap}"
+    else
+        log_info "Non-BTRFS — performing kexec cutover..."
+        local kernel="${stage_dir}/boot/vmlinuz-linux-custom"
+        local initramfs="${stage_dir}/boot/initramfs-linux-custom.img"
+        [[ -f "${kernel}" ]] || kernel=$(find "${stage_dir}/boot" -name 'vmlinuz-*' | head -n1)
+        [[ -f "${initramfs}" ]] || initramfs=$(find "${stage_dir}/boot" -name 'initramfs-*.img' | head -n1)
+
+        [[ -f "${kernel}" ]] || die "No kernel found in staged system"
+        [[ -f "${initramfs}" ]] || die "No initramfs found in staged system"
+
+        local root_dev
+        root_dev=$(findmnt -no SOURCE /)
+        local cmdline="root=${root_dev} rw init=/sbin/init"
+
+        log_info "Loading new kernel via kexec..."
+        kexec -l "${kernel}" --initrd="${initramfs}" --command-line="${cmdline}" || die "kexec load failed"
+        log_info "Kernel loaded. Running kexec -e..."
+        sync
+        kexec -e
+    fi
+}
+
+deploy_sd_card() {
+    local target_device="${1}"
+    local board="${BOARD_NAME:-unknown}"
+    [[ -b "${target_device}" ]] || die "Invalid target device: ${target_device}"
+
+    log_info "Deploying to ${target_device} for ${board}..."
+
+    parted -s "${target_device}" mklabel msdos
+    parted -s "${target_device}" mkpart primary fat32 1MiB 101MiB
+    parted -s "${target_device}" mkpart primary ext4 101MiB 100%
+    mkfs.vfat -F32 "${target_device}1"
+    mkfs.ext4 -F "${target_device}2"
+
+    local tmp_boot="/tmp/arm-boot-$$"
+    local tmp_root="/tmp/arm-root-$$"
+    mkdir -p "${tmp_boot}" "${tmp_root}"
+    mount "${target_device}1" "${tmp_boot}"
+    mount "${target_device}2" "${tmp_root}"
+
+    rsync -a /mnt/ "${tmp_root}/" || die "Failed to copy rootfs"
+    cp /mnt/boot/* "${tmp_boot}/" 2>/dev/null || true
+
+    if [[ -f /mnt/usr/share/uboot/${board}/u-boot.bin ]]; then
+        dd if="/mnt/usr/share/uboot/${board}/u-boot.bin" of="${target_device}" seek=64 conv=fsync 2>/dev/null || log_warn "U-Boot write failed"
+    fi
+
+    umount "${tmp_boot}" "${tmp_root}"
+    rmdir "${tmp_boot}" "${tmp_root}"
+    log_info "Deployment complete. Insert SD card into ${board} and boot."
 }

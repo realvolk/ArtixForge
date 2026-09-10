@@ -1,34 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail;
 
-_preflight_rank_mirrors() {
-    local mirrorlist="/etc/pacman.d/mirrorlist"
-    local backup="${mirrorlist}.orig"
-
-    if ! tui_yesno "Mirror Ranking" "Rank mirrors for faster downloads?"; then
-        log_info "Skipping mirror ranking."
-        return 0
-    fi
-
-    log_info "Ranking mirrors..."
-    pacman -S --noconfirm --needed pacman-contrib || recoverable_error "Failed to install pacman-contrib"
-
-    local ranked="/tmp/mirrorlist.ranked"
-    if rankmirrors -n 6 "${backup}" > "${ranked}" 2>/dev/null; then
-        if [[ -s "${ranked}" ]]; then
-            cp "${ranked}" "${mirrorlist}"
-            log_info "Mirror ranking completed."
-        else
-            log_warn "rankmirrors produced empty output – keeping original mirrorlist."
-        fi
-    else
-        log_warn "rankmirrors failed – keeping original mirrorlist."
-    fi
-    rm -f "${ranked}"
-
-    pacman -Sy --noconfirm || log_warn "Failed to refresh package database after ranking."
-}
-
 stage_preflight() {
     if stage_should_skip preflight; then
         return 0;
@@ -50,24 +22,11 @@ stage_preflight() {
         fi
     fi
 
-    local original_mirrorlist="/etc/pacman.d/mirrorlist.orig"
-    if [[ ! -f "${original_mirrorlist}" ]]; then
-        cp /etc/pacman.d/mirrorlist "${original_mirrorlist}" 2>/dev/null || true
-    fi
-
-    _preflight_rank_mirrors
-
-    local pacman_conf_backup='/tmp/pacman.conf.artixtui.bak'
-    if [[ ! -f "${pacman_conf_backup}" ]]; then
-        cp /etc/pacman.conf "${pacman_conf_backup}"
-    fi
+    pacman -Sy --noconfirm || log_warn "Failed to refresh package database."
 
     local pkgs=();
     local fs_type;
-    local target_kernel;
-    local live_kernel_pkg="";
     fs_type="$(state_get FS_TYPE ext4)";
-    target_kernel="$(state_get KERNEL_CHOICE linux)";
 
     command_exists sgdisk       || pkgs+=(gptfdisk);
     command_exists partprobe    || pkgs+=(parted);
@@ -91,13 +50,6 @@ stage_preflight() {
         command -v makepkg &>/dev/null || pkgs+=(base-devel)
     fi
 
-    case "$(uname -r)" in
-        *lts*)       live_kernel_pkg="linux-lts" ;;
-        *zen*)       live_kernel_pkg="linux-zen" ;;
-        *hardened*)  live_kernel_pkg="linux-hardened" ;;
-        *)           live_kernel_pkg="linux" ;;
-    esac
-
     case "${fs_type}" in
         xfs)      command_exists mkfs.xfs || pkgs+=(xfsprogs) ;;
         f2fs)     command_exists mkfs.f2fs || pkgs+=(f2fs-tools) ;;
@@ -105,15 +57,9 @@ stage_preflight() {
 
     if [[ ${#pkgs[@]} -gt 0 ]]; then
         log_info "Installing required tools: ${pkgs[*]}"
-        if ! gum spin --spinner dot --title "Preflight – installing dependencies" -- \
-            pacman -S --noconfirm --needed "${pkgs[@]}"; then
-            log_warn "Package installation failed — restoring original mirrors and retrying."
-            if [[ -f "${original_mirrorlist}" ]]; then
-                cp "${original_mirrorlist}" /etc/pacman.d/mirrorlist
-                pacman -Sy --noconfirm || true
-            fi
-            if ! gum spin --spinner dot --title "Preflight – retrying" -- \
-                pacman -S --noconfirm --needed "${pkgs[@]}"; then
+        if ! pacman -S --noconfirm --needed "${pkgs[@]}"; then
+            pacman -Sy --noconfirm || true
+            if ! pacman -S --noconfirm --needed "${pkgs[@]}"; then
                 log_error "Failed to install: ${pkgs[*]}"
                 recoverable_error "Package installation failed. Check network and mirrorlist."
             fi

@@ -52,14 +52,13 @@ export -f get_gpu_vendor get_gpu_info get_pci_id detect_vm
 
 install_drivers() {
     local pkgs=() rc=0 initramfs_tool='mkinitcpio'
-    local gpu_vendor gpu_info pci_id vm_type x_stack wm_de kernel_choice
+    local gpu_vendor gpu_info pci_id vm_type wm_de kernel_choice
     gpu_vendor=$(get_gpu_vendor | tr -d '[:space:]')
     gpu_vendor="${gpu_vendor:-unknown}"
     gpu_info=$(get_gpu_info)
     gpu_info="${gpu_info:-Unknown}"
     pci_id=$(get_pci_id)
     vm_type=$(detect_vm)
-    x_stack="$(state_get X_STACK xorg | tr -d '[:space:]')"
     wm_de="$(state_get WM_DE none | tr -d '[:space:]')"
     kernel_choice="$(state_get KERNEL_CHOICE linux | tr -d '[:space:]')"
 
@@ -75,42 +74,31 @@ install_drivers() {
             pacman -Si linux-cachyos-headers >/dev/null 2>&1 && pkgs+=(linux-cachyos-headers) ;;
         linux-bazzite-bin|bazzite) initramfs_tool='dracut' ;;
         xanmod)
-            local cpu_level kernel_headers
-            cpu_level=$(/lib/ld-linux-x86-64.so.2 --help 2>/dev/null | grep -oE 'x86-64-v[2-4]' | head -n1)
-            case "${cpu_level}" in
-                x86-64-v4) kernel_headers='linux-xanmod-x64v4-headers' ;;
-                x86-64-v3) kernel_headers='linux-xanmod-x64v3-headers' ;;
-                x86-64-v2) kernel_headers='linux-xanmod-x64v2-headers' ;;
-                *)         kernel_headers='linux-xanmod-headers' ;;
-            esac
-            pkgs+=("${kernel_headers}") ;;
+            local installed_kernel kernel_headers
+            installed_kernel=$(pacman -Q | grep -oP 'linux-xanmod-x64v[2-4]' | head -n1)
+            if [[ -n "${installed_kernel}" ]]; then
+                kernel_headers="${installed_kernel}-headers"
+            else
+                kernel_headers="linux-xanmod-headers"
+            fi
+            pkgs+=("${kernel_headers}")
+            ;;
         tkg) ;;
     esac
 
     {
         log_info "GPU detected: ${gpu_info}"
         log_info "Virtualization: ${vm_type}"
-        log_info "Display stack: ${x_stack}"
         log_info "Kernel: ${kernel_choice}"
 
         if [[ "${vm_type}" != 'none' ]]; then
             log_info "VM detected. Installing guest drivers..."
             case "${vm_type}" in
                 kvm|qemu)
-                    pkgs+=(spice-vdagent qemu-guest-agent)
-                    if [[ "${x_stack}" == 'xlibre' ]]; then
-                        pkgs+=(xlibre-video-qxl)
-                    else
-                        pkgs+=(xf86-video-qxl)
-                    fi
+                    pkgs+=(spice-vdagent qemu-guest-agent xf86-video-qxl)
                     ;;
                 vmware)
-                    pkgs+=(open-vm-tools)
-                    if [[ "${x_stack}" == 'xlibre' ]]; then
-                        pkgs+=(xlibre-video-vmware)
-                    else
-                        pkgs+=(xf86-video-vmware)
-                    fi
+                    pkgs+=(open-vm-tools xf86-video-vmware)
                     ;;
                 oracle|virtualbox)
                     pkgs+=(virtualbox-guest-utils)
@@ -128,28 +116,16 @@ install_drivers() {
             fi
         elif [[ "${gpu_vendor}" == 'intel' ]]; then
             log_info "Intel GPU detected."
-            if [[ "${x_stack}" == 'xlibre' ]]; then
-                pkgs+=(xlibre-video-intel mesa vulkan-intel)
-            else
-                pkgs+=(xf86-video-intel intel-media-driver mesa vulkan-intel)
-            fi
+            pkgs+=(xf86-video-intel intel-media-driver mesa vulkan-intel)
         elif [[ "${gpu_vendor}" == 'amd' ]]; then
             log_info "AMD GPU detected."
-            if [[ "${x_stack}" == 'xlibre' ]]; then
-                pkgs+=(xlibre-video-amdgpu mesa vulkan-radeon)
-            else
-                pkgs+=(xf86-video-amdgpu mesa vulkan-radeon)
-            fi
+            pkgs+=(xf86-video-amdgpu mesa vulkan-radeon)
         else
             log_info "Unknown GPU → VESA fallback"
-            if [[ "${x_stack}" == 'xlibre' ]]; then
-                pkgs+=(mesa)
-            else
-                pkgs+=(mesa xf86-video-vesa)
-            fi
+            pkgs+=(mesa xf86-video-vesa)
         fi
 
-        [[ "${x_stack}" == 'xlibre' ]] && pkgs+=(xlibre-xserver) || pkgs+=(xorg-server)
+        pkgs+=(xorg-server)
 
         case "${wm_de}" in hyprland|niri|sway) pkgs+=(xorg-xwayland) ;; esac
 
@@ -193,11 +169,7 @@ install_drivers() {
             export COLUMNS=80 LINES=24 TERM=dumb
             modprobe -r nvidia nvidia_modeset nvidia_uvm nvidia_drm 2>/dev/null || true
             dkms remove nvidia --all 2>/dev/null || true
-            if [[ "${x_stack}" == 'xlibre' ]]; then
-                retry_command "nouveau fallback" pacman --color=never --noconfirm --needed -S xlibre-video-nouveau mesa
-            else
-                retry_command "nouveau fallback" pacman --color=never --noconfirm --needed -S xf86-video-nouveau mesa
-            fi
+            retry_command "nouveau fallback" pacman --color=never --noconfirm --needed -S xf86-video-nouveau mesa
             rc=$?
         } >> /root/ArtixForge/drivers-debug.log 2>&1
     fi

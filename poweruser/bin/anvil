@@ -35,13 +35,29 @@ Commands:
   menuconfig        Launch make menuconfig (needs kernel source)
   fetch-recipe <name>  Download a single recipe from the community repo
   fetch-all         Download all recipe sources for offline use
+  fetch-world       Download all sources for the full dependency tree
   lint <name>       Validate a recipe
   checksum <recipe> Download sources and print SHA256 checksums
   upgrade           Backup recipes and update from remote
   cache-clean       Remove obsolete cached packages
-  recovery [pkg]    Check or repair source‑built packages (default: kernel)
+  recovery [pkg]    Check or repair source-built packages (default: kernel)
   sync              Update .LIST and recipes from community repo
   sections          Manage which recipe sections are enabled
+  files <pkg>       List files owned by a package
+  verify <pkg>      Verify installed files exist
+  remove <pkg>      Uninstall a source-built package
+  log <pkg>         Show recipe commit history
+  diff <pkg>        Show last recipe change
+  rollback-recipe <pkg> <commit>  Revert recipe to a previous commit
+  flag <pkg> [flag] [on|off]  Manage per-package feature flags
+  flag info <pkg> <flag>      Show flag description and effects
+  shell <pkg>                 Interactive build debugging shell
+  trial <url>                 Generate recipe from source tarball
+  gc                           Garbage collect unreachable artifacts
+  bootstrap [dir]              Build full system from world file
+  audit [pkg]                  Security audit of built binaries
+  estimate                     Estimate build time for world
+  world {status|add|remove|build|activate}  World file lifecycle
   --tui             Launch interactive TUI
 EOF
 }
@@ -58,7 +74,7 @@ main() {
         list)          list_packages ;;
         list-recipes)  list_recipes ;;
         info)          [[ -n "${2:-}" ]] || { usage; exit 1; }; info_package "${2}" ;;
-        rebuild)       [[ -n "${2:-}" ]] || { usage; exit 1; }; rebuild_package "${2}" ;;
+        rebuild)       shift; rebuild_package "$@" ;;
         new)           [[ -n "${2:-}" ]] || { usage; exit 1; }; new_recipe "${2}" ;;
         edit)          [[ -n "${2:-}" ]] || { usage; exit 1; }; edit_recipe "${2}" ;;
         config)        edit_config ;;
@@ -66,10 +82,37 @@ main() {
         fetch-source)  [[ -n "${2:-}" ]] || { usage; exit 1; }; fetch_source "${2}" ;;
         fetch-recipe)  [[ -n "${2:-}" ]] || { usage; exit 1; }; fetch_recipe "${2}" ;;
         fetch-all)     fetch_all_sources ;;
+        fetch-world)   anvil_fetch_world ;;
         lint)          [[ -n "${2:-}" ]] || { usage; exit 1; }; lint_recipe "${2}" ;;
         checksum)      [[ -n "${2:-}" ]] || { usage; exit 1; }; checksum_recipe "${2}" ;;
         upgrade)       upgrade_anvil ;;
         cache-clean)   cache_clean ;;
+        files)         [[ -n "${2:-}" ]] || { usage; exit 1; }; anvil_files "${2}" ;;
+        verify)        [[ -n "${2:-}" ]] || { usage; exit 1; }; anvil_verify "${2}" ;;
+        remove)        [[ -n "${2:-}" ]] || { usage; exit 1; }; anvil_remove "${2}" ;;
+        log)           [[ -n "${2:-}" ]] || { usage; exit 1; }; anvil_log "${2}" ;;
+        diff)          [[ -n "${2:-}" ]] || { usage; exit 1; }; anvil_diff "${2}" ;;
+        rollback-recipe) [[ -n "${2:-}" && -n "${3:-}" ]] || { usage; exit 1; }; anvil_rollback_recipe "${2}" "${3}" ;;
+        flag)
+            [[ -n "${2:-}" ]] || { usage; exit 1; }
+            case "${2}" in
+                info) anvil_flag_info "${3:-}" "${4:-}" ;;
+                *)    anvil_flag "${2}" "${3:-}" "${4:-toggle}" ;;
+            esac
+            ;;
+        shell)
+            [[ -n "${2:-}" ]] || { usage; exit 1; }
+            anvil_shell "${2}"
+            ;;
+        trial)         [[ -n "${2:-}" ]] || { usage; exit 1; }; anvil_trial "${2}" ;;
+        gc)            anvil_gc ;;
+        bootstrap)     anvil_bootstrap "${2:-/tmp/anvil-bootstrap}" ;;
+        audit)         anvil_audit "${2:-}" ;;
+        estimate)      anvil_estimate ;;
+        world)
+            shift
+            anvil_world "$@"
+            ;;
         recovery)
             require_root
             if [[ -z "${2:-}" ]]; then

@@ -138,13 +138,24 @@ ata_migrate_homed_users() {
     local backup_dir="${1}"
     log_info "Migrating systemd-homed users..."
 
+    if [[ ! -s /tmp/ata-homed.txt ]]; then
+        log_info "No homed users found."
+        return 0
+    fi
+
     while IFS= read -r line; do
         [[ -z "${line}" ]] && continue
-        local username uid shell home_path storage
+        local username uid shell storage
         username=$(echo "${line}" | awk '{print $1}')
-        uid=$(homectl inspect "${username}" 2>/dev/null | grep 'Uid=' | cut -d= -f2)
-        shell=$(homectl inspect "${username}" 2>/dev/null | grep 'Shell=' | cut -d= -f2)
-        storage=$(homectl inspect "${username}" 2>/dev/null | grep 'Storage=' | cut -d= -f2)
+        if command -v homectl >/dev/null 2>&1; then
+            uid=$(homectl inspect "${username}" 2>/dev/null | grep 'Uid=' | cut -d= -f2)
+            shell=$(homectl inspect "${username}" 2>/dev/null | grep 'Shell=' | cut -d= -f2)
+            storage=$(homectl inspect "${username}" 2>/dev/null | grep 'Storage=' | cut -d= -f2)
+        else
+            uid=""
+            shell=""
+            storage=""
+        fi
 
         [[ -z "${uid}" ]] && uid=$(id -u "${username}" 2>/dev/null || echo "")
         [[ -z "${uid}" ]] && { log_warn "  Cannot determine UID for ${username} — skipping"; continue; }
@@ -183,52 +194,30 @@ ata_migrate_homed_users() {
             useradd -u "${uid}" -s "${shell}" -m "${username}" 2>/dev/null || true
             log_info "    Created user ${username}"
         fi
-    done < <(homectl list 2>/dev/null | tail -n +2)
+    done < /tmp/ata-homed.txt
 }
 
 ata_convert_user_services() {
-    log_info "Converting systemd --user services to autostart..."
+    log_info "Converting systemd --user services..."
 
     if [[ ! -s /tmp/ata-user-units.txt ]]; then
         log_info "  No user services found."
         return 0
     fi
 
-    local -A known_autostart=(
-        ["pipewire.service"]="pipewire.desktop"
-        ["pipewire-pulse.service"]="pipewire-pulse.desktop"
-        ["wireplumber.service"]="wireplumber.desktop"
-        ["gpg-agent.service"]="gpg-agent.desktop"
-        ["ssh-agent.service"]="ssh-agent.desktop"
-        ["dconf.service"]=""
-    )
-
     mkdir -p /etc/xdg/autostart
+    : > /tmp/ata-unknown-user-services.txt
 
     while IFS= read -r unit; do
         [[ -z "${unit}" ]] && continue
         local name="${unit%.service}"
-
-        if [[ -n "${known_autostart[${unit}]:-}" ]]; then
-            local desktop_file="${known_autostart[${unit}]}"
-            [[ -z "${desktop_file}" ]] && continue
-            cat > "/etc/xdg/autostart/${desktop_file}" <<AUTOSTART
-[Desktop Entry]
-Type=Application
-Name=${name}
-Exec=/usr/bin/systemctl --user start ${unit} 2>/dev/null || /usr/bin/true
-X-GNOME-Autostart-enabled=true
-NoDisplay=true
-AUTOSTART
-            log_info "  ${unit} → /etc/xdg/autostart/${desktop_file}"
-        else
-            log_info "  ${unit} — unknown service, manual startup may be required"
-            printf '%s\n' "${unit}" >> /tmp/ata-unknown-user-services.txt
-        fi
+        log_warn "  ${unit} — manual setup required after migration"
+        printf '%s\n' "${unit}" >> /tmp/ata-unknown-user-services.txt
     done < /tmp/ata-user-units.txt
 
-    if [[ -f /tmp/ata-unknown-user-services.txt ]]; then
-        log_warn "Some user services could not be auto-converted. List saved to backup."
+    if [[ -s /tmp/ata-unknown-user-services.txt ]]; then
+        log_warn "Some user services could not be auto-converted. List saved to ${backup_dir}/lists/ata-unknown-user-services.txt (if exists)"
+        cp /tmp/ata-unknown-user-services.txt "${backup_dir}/lists/" 2>/dev/null || true
     fi
 }
 
@@ -261,7 +250,6 @@ ata_convert_systemd_boot() {
 
     grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || log_warn "grub-mkconfig failed"
 
-    # Remove old systemd-boot EFI entries
     if command -v efibootmgr >/dev/null 2>&1; then
         efibootmgr 2>/dev/null | grep -i 'Linux Boot Manager' | while IFS= read -r entry; do
             local bootnum="${entry#Boot}"

@@ -17,6 +17,12 @@ ata_convert_network_credentials() {
     log_info "Converting network credentials..."
 
     local found=0
+    local wpa_conf=""
+    local iface
+    iface=$(ip -o link show | awk -F': ' '$2 ~ /^wl/ {print $2; exit}') || true
+    [[ -z "$iface" ]] && iface="wlan0"
+    wpa_conf="/etc/wpa_supplicant/wpa_supplicant-${iface}.conf"
+
     for f in /etc/systemd/network/*.network; do
         [[ -f "$f" ]] || continue
         local ssid psk
@@ -24,13 +30,13 @@ ata_convert_network_credentials() {
         psk=$(grep -oP 'Password=\K.*' "$f" 2>/dev/null || true)
         if [[ -n "${ssid}" && -n "${psk}" ]]; then
             mkdir -p /etc/wpa_supplicant
-            cat >> /etc/wpa_supplicant/wpa_supplicant-nl80211-wlp.conf <<WPA
+            cat >> "$wpa_conf" <<WPA
 network={
     ssid="${ssid}"
     psk="${psk}"
 }
 WPA
-            chmod 600 /etc/wpa_supplicant/wpa_supplicant-nl80211-wlp.conf
+            chmod 600 "$wpa_conf"
             found=1
         fi
     done
@@ -52,22 +58,6 @@ WPA
     [[ $found -eq 1 ]] && log_info "Network credentials converted."
 }
 
-ata_convert_mkinitcpio_presets() {
-    log_info "Converting mkinitcpio presets..."
-    local preset
-    for preset in /etc/mkinitcpio.d/*.preset; do
-        [[ -f "${preset}" ]] || continue
-        sed -i '/default_uki\|uki_output\|fallback_uki\|--splash\|--uefi/d' "${preset}"
-        sed -i 's|/boot/EFI/Linux/.*\.efi||g' "${preset}"
-        sed -i 's/^#\(default_image=\)/\1/' "${preset}"
-        sed -i 's/^#\(fallback_image=\)/\1/' "${preset}"
-        sed -i 's/^#\(default_config=\)/\1/' "${preset}"
-        sed -i 's/^#\(fallback_config=\)/\1/' "${preset}"
-        sed -i 's/^#\(fallback_options=\)/\1/' "${preset}"
-        log_info "  Cleaned ${preset}"
-    done
-}
-
 ata_convert_timers() {
     log_info "Converting systemd timers to cron..."
 
@@ -85,11 +75,17 @@ ata_convert_timers() {
     while IFS= read -r timer_unit; do
         [[ -z "${timer_unit}" ]] && continue
 
+        local unit_config
+        unit_config=$(systemctl cat "${timer_unit}" 2>/dev/null)
+        if [[ -z "$unit_config" ]]; then
+            continue
+        fi
+
         local oncalendar onbootsec onunitactivesec service_unit
-        oncalendar=$(systemctl cat "${timer_unit}" 2>/dev/null | grep 'OnCalendar=' | head -n1 | cut -d= -f2-)
-        onbootsec=$(systemctl cat "${timer_unit}" 2>/dev/null | grep 'OnBootSec=' | head -n1 | cut -d= -f2-)
-        onunitactivesec=$(systemctl cat "${timer_unit}" 2>/dev/null | grep 'OnUnitActiveSec=' | head -n1 | cut -d= -f2-)
-        service_unit=$(systemctl cat "${timer_unit}" 2>/dev/null | grep 'Unit=' | head -n1 | cut -d= -f2)
+        oncalendar=$(echo "$unit_config" | grep 'OnCalendar=' | head -n1 | cut -d= -f2-)
+        onbootsec=$(echo "$unit_config" | grep 'OnBootSec=' | head -n1 | cut -d= -f2-)
+        onunitactivesec=$(echo "$unit_config" | grep 'OnUnitActiveSec=' | head -n1 | cut -d= -f2-)
+        service_unit=$(echo "$unit_config" | grep 'Unit=' | head -n1 | cut -d= -f2)
 
         local cmd="${service_unit:-true}"
 
@@ -212,7 +208,13 @@ ata_convert_mkinitcpio() {
 
 ata_convert_resolv_conf() {
     log_info "Fixing resolv.conf..."
-    if [[ -f /tmp/ata-resolv-link.txt ]]; then
+
+    local resolved_active="no"
+    if systemctl is-active systemd-resolved >/dev/null 2>&1 || [[ -L /etc/resolv.conf ]]; then
+        resolved_active="yes"
+    fi
+
+    if [[ "${resolved_active}" == "yes" ]]; then
         systemctl stop systemd-resolved 2>/dev/null || true
         systemctl disable systemd-resolved 2>/dev/null || true
 

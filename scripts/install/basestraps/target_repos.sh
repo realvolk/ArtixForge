@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+_detect_cachyos_cpu_level() {
+    if grep -q avx512 /proc/cpuinfo 2>/dev/null; then
+        echo "x86-64-v4"
+    elif grep -q avx2 /proc/cpuinfo 2>/dev/null; then
+        echo "x86-64-v3"
+    else
+        echo "x86-64-v2"
+    fi
+}
+
 basestrap_target_repo_cachyos() {
     if ! grep -q '^\[cachyos\]' /mnt/etc/pacman.conf 2>/dev/null; then
         mkdir -p /mnt/etc/pacman.d
@@ -9,17 +19,8 @@ basestrap_target_repo_cachyos() {
         cp /etc/pacman.d/cachyos-v4-mirrorlist /mnt/etc/pacman.d/ 2>/dev/null || true
 
         local cpu_level
-        cpu_level=$(/lib/ld-linux-x86-64.so.2 --help 2>/dev/null | grep -oP 'x86-64-v[2-4]' | head -n1 || true)
-
-        if [[ "${cpu_level}" == "x86-64-v4" ]]; then
-            local cpu_model vendor
-            cpu_model=$(grep -m1 'model' /proc/cpuinfo | awk '{print $3}')
-            vendor=$(grep -m1 'vendor_id' /proc/cpuinfo | awk '{print $3}')
-            if [[ "${vendor}" == "GenuineIntel" && "${cpu_model}" -ge 151 ]]; then
-                log_warn "Intel 12th gen+ detected — AVX-512 is fused off, using v3 instead of v4"
-                cpu_level="x86-64-v3"
-            fi
-        fi
+        cpu_level=$(_detect_cachyos_cpu_level)
+        log_info "Target CPU level: ${cpu_level}"
 
         if [[ "${cpu_level}" == "x86-64-v4" ]]; then
             if ! grep -q '^Architecture =.*x86_64_v4' /mnt/etc/pacman.conf; then
@@ -37,6 +38,9 @@ Include = /etc/pacman.d/cachyos-v4-mirrorlist
 
 EOF
         elif [[ "${cpu_level}" == "x86-64-v3" ]]; then
+            if ! grep -q '^Architecture =.*x86_64_v3' /mnt/etc/pacman.conf; then
+                sed -i '/^\[options\]/a Architecture = x86_64 x86_64_v3' /mnt/etc/pacman.conf
+            fi
             cat <<'EOF' >> /mnt/etc/pacman.conf
 [cachyos-v3]
 Include = /etc/pacman.d/cachyos-v3-mirrorlist

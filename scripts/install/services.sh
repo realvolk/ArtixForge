@@ -5,12 +5,12 @@ set -Eeuo pipefail
 service_exists() {
     local svc="${1}" init="${INIT:-openrc}"
     case "${init}" in
-        openrc) [[ -f "/etc/init.d/${svc}" ]] ;;
-        runit)  [[ -d "/etc/runit/sv/${svc}" ]] ;;
-        dinit)  [[ -f "/etc/dinit.d/${svc}" ]] ;;
-        s6)     [[ -d "/etc/s6/sv/${svc}" ]] ;;
-        *)      return 1 ;;
+        openrc) [[ -f "/etc/init.d/${svc}" ]] && return 0 ;;
+        runit)  [[ -d "/etc/runit/sv/${svc}" ]] && return 0 ;;
+        dinit)  [[ -f "/etc/dinit.d/${svc}" ]] && return 0 ;;
+        s6)     [[ -d "/etc/s6/sv/${svc}" ]] && return 0 ;;
     esac
+    return 1
 }
 
 enable_service() {
@@ -22,8 +22,8 @@ enable_service() {
     esac
     
     if ! service_exists "${svc}"; then
-        log_warn "Service not found for ${init}: ${svc}"
-        return 1
+        warn_collect "Service '${svc}' not found for ${init} — enable manually after install"
+        return 0
     fi
     case "${init}" in
         openrc) rc-update add "${svc}" default ;;
@@ -41,8 +41,9 @@ enable_service_boot() {
     esac
     
     if ! service_exists "${svc}"; then
-        log_warn "Service not found for ${init}: ${svc}"
-        return 1
+        log_warn "Boot service '${svc}' not found for ${init} — skipping. It may need to be enabled manually after install."
+        MISSING_SERVICES="${MISSING_SERVICES}  - ${svc} (${init}) [boot]\n"
+        return 0
     fi
     case "${init}" in
         openrc) rc-update add "${svc}" boot ;;
@@ -55,8 +56,8 @@ enable_service_boot() {
 start_service() {
     local svc="${1}" init="${INIT:-openrc}"
     if ! service_exists "${svc}"; then
-        log_warn "Service not found for ${init}: ${svc}"
-        return 1
+        log_warn "Cannot start '${svc}' — not found for ${init}."
+        return 0
     fi
     case "${init}" in
         openrc) rc-service "${svc}" start || true ;;

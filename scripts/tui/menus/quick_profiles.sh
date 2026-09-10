@@ -8,24 +8,52 @@ tui_quick_install() {
 
     local profile
     profile=$(tui_menu "Quick Profile" "Select a preset:" \
-        "Desktop – KDE, NetworkManager, PipeWire, flatpak" \
-        "Server – no desktop, SSH, firewalld, zram" \
-        "Minimal – no extras, basic system only" \
-        "Embedded – BusyBox init, minimal kernel, no X" \
-        "Gaming – KDE, linux-zen, PipeWire, flatpak, gaming extras" \
-        "Development – XFCE, base-devel, git, neovim, development tools" \
-        "Media – KDE minimal, mpv, feh, media extras" \
-        "Volk's Personal – dinit, KDE minimal, source-built kernel" \
-        "TestingQP – XFS, LUKS, LVM, Limine, UKI, s6, CachyOS, MangoWM, BusyBox coreutils" \
-        "Load custom profile – source a saved configuration file") || return 1
+        "Base – no desktop, minimal system" \
+        "Plasma – KDE Plasma desktop" \
+        "XFCE – XFCE4 desktop" \
+        "Cinnamon – Cinnamon desktop" \
+        "LXQt – LXQt desktop" \
+        "Community GTK – community GTK ISO package set" \
+        "Community Qt – community Qt ISO package set" \
+        "Gaming – Plasma, linux-zen, Steam, Lutris, DOSBox" \
+        "Server – no desktop, firewalld, tmux" \
+        "Minimal – bare system, no extras") || return 1
 
     case "${profile}" in
-        *Desktop*)
-            state_set QUICK_PROFILE "Desktop"
+        *Base*)
+            state_set QUICK_PROFILE "Base"
+            local base_init
+            base_init=$(tui_menu "Base Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
+            state_set INIT "${base_init}"
             state_set FS_TYPE "ext4"
             state_set BOOTLOADER "grub"
             state_set KERNEL_CHOICE "linux"
-            state_set INIT "openrc"
+            state_set PRIV_ESCALATION "doas"
+            state_set USE_LUKS "no"
+            state_set USE_LVM "no"
+            state_set GENERATE_UKI "no"
+            state_set ALLOW_OFFLINE "no"
+            state_set ENABLE_ARCH_REPOS "no"
+            state_set MICROCODE_OVERRIDE "auto"
+            state_set KEEP_BINARY_KERNEL "yes"
+            state_set COREUTILS "gnu"
+            state_set KERNEL_CONFIG_DEPTH "auto"
+            state_set WM_DE "none"
+            state_set DISPLAY_MANAGER "none"
+            state_set NETWORK_STACK "dhcpcd+iwd"
+            state_set AUDIO_STACK "none"
+            state_set X_STACK "none"
+            state_set USER_SHELL "bash"
+            state_set EXTRAS ""
+            ;;
+        *Plasma*)
+            state_set QUICK_PROFILE "Plasma"
+            local plasma_init
+            plasma_init=$(tui_menu "Plasma Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
+            state_set INIT "${plasma_init}"
+            state_set FS_TYPE "ext4"
+            state_set BOOTLOADER "grub"
+            state_set KERNEL_CHOICE "linux"
             state_set PRIV_ESCALATION "sudo"
             state_set USE_LUKS "no"
             state_set USE_LVM "no"
@@ -41,115 +69,19 @@ tui_quick_install() {
             state_set DISPLAY_MANAGER "sddm"
             state_set NETWORK_STACK "networkmanager"
             state_set AUDIO_STACK "pipewire"
-            state_set X_STACK "xlibre"
+            state_set X_STACK "xorg"
             state_set USER_SHELL "bash"
             state_set EXTRAS "git flatpak fastfetch firewalld bluez zram-tools firefox neovim alacritty fzf zoxide starship eza btop htop tmux mpv"
             ;;
-        *Server*)
-            state_set QUICK_PROFILE "Server"
+        *XFCE*)
+            state_set QUICK_PROFILE "XFCE"
+            local xfce_init
+            xfce_init=$(tui_menu "XFCE Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
+            state_set INIT "${xfce_init}"
             state_set FS_TYPE "ext4"
             state_set BOOTLOADER "grub"
             state_set KERNEL_CHOICE "linux"
-            state_set INIT "openrc"
-            state_set PRIV_ESCALATION "doas"
-            state_set USE_LUKS "no"
-            state_set USE_LVM "no"
-            state_set GENERATE_UKI "no"
-            state_set ALLOW_OFFLINE "no"
-            state_set ENABLE_ARCH_REPOS "no"
-            state_set MICROCODE_OVERRIDE "auto"
-            state_set KEEP_BINARY_KERNEL "yes"
-            state_set COREUTILS "gnu"
-            state_set KERNEL_CONFIG_DEPTH "auto"
-            state_set WM_DE "none"
-            state_set DISPLAY_MANAGER "none"
-            state_set NETWORK_STACK "dhcpcd+iwd"
-            state_set AUDIO_STACK "none"
-            state_set X_STACK "none"
-            state_set USER_SHELL "bash"
-            state_set EXTRAS "git firewalld zram-tools tmux"
-            ;;
-        *Minimal*)
-            state_set QUICK_PROFILE "Minimal"
-            state_set FS_TYPE "ext4"
-            state_set BOOTLOADER "grub"
-            state_set KERNEL_CHOICE "linux"
-            state_set INIT "openrc"
-            state_set PRIV_ESCALATION "doas"
-            state_set USE_LUKS "no"
-            state_set USE_LVM "no"
-            state_set GENERATE_UKI "no"
-            state_set ALLOW_OFFLINE "no"
-            state_set ENABLE_ARCH_REPOS "no"
-            state_set MICROCODE_OVERRIDE "auto"
-            state_set KEEP_BINARY_KERNEL "yes"
-            state_set COREUTILS "gnu"
-            state_set KERNEL_CONFIG_DEPTH "auto"
-            state_set WM_DE "none"
-            state_set DISPLAY_MANAGER "none"
-            state_set NETWORK_STACK "dhcpcd+iwd"
-            state_set AUDIO_STACK "none"
-            state_set X_STACK "none"
-            state_set USER_SHELL "bash"
-            state_set EXTRAS ""
-            ;;
-        *Embedded*)
-            state_set QUICK_PROFILE "Embedded"
-            state_set FS_TYPE "ext4"
-            state_set BOOTLOADER "grub"
-            state_set KERNEL_CHOICE "linux-lts"
-            state_set INIT "busybox"
-            state_set PRIV_ESCALATION "none"
-            state_set USE_LUKS "no"
-            state_set USE_LVM "no"
-            state_set GENERATE_UKI "no"
-            state_set ALLOW_OFFLINE "no"
-            state_set ENABLE_ARCH_REPOS "no"
-            state_set MICROCODE_OVERRIDE "auto"
-            state_set POWER_USER "yes"
-            state_set KEEP_BINARY_KERNEL "no"
-            state_set COREUTILS "busybox"
-            state_set KERNEL_CONFIG_DEPTH "auto"
-            state_set WM_DE "none"
-            state_set DISPLAY_MANAGER "none"
-            state_set NETWORK_STACK "none"
-            state_set AUDIO_STACK "none"
-            state_set X_STACK "none"
-            state_set USER_SHELL "bash"
-            state_set EXTRAS ""
-            ;;
-        *Gaming*)
-            state_set QUICK_PROFILE "Gaming"
-            state_set FS_TYPE "ext4"
-            state_set BOOTLOADER "grub"
-            state_set KERNEL_CHOICE "linux-zen"
-            state_set INIT "openrc"
             state_set PRIV_ESCALATION "sudo"
-            state_set USE_LUKS "no"
-            state_set USE_LVM "no"
-            state_set GENERATE_UKI "no"
-            state_set ALLOW_OFFLINE "no"
-            state_set ENABLE_ARCH_REPOS "yes"
-            state_set MICROCODE_OVERRIDE "auto"
-            state_set KEEP_BINARY_KERNEL "yes"
-            state_set COREUTILS "gnu"
-            state_set KERNEL_CONFIG_DEPTH "auto"
-            state_set WM_DE "kde"
-            state_set KDE_PROFILE "minimal"
-            state_set DISPLAY_MANAGER "sddm"
-            state_set NETWORK_STACK "networkmanager"
-            state_set AUDIO_STACK "pipewire"
-            state_set X_STACK "xlibre"
-            state_set USER_SHELL "bash"
-            state_set EXTRAS "git flatpak fastfetch firewalld firefox alacritty fzf zoxide starship eza btop tmux mpv"
-            ;;
-        *Development*)
-            state_set QUICK_PROFILE "Development"
-            state_set FS_TYPE "ext4"
-            state_set BOOTLOADER "grub"
-            state_set KERNEL_CHOICE "linux"
-            state_set INIT "openrc"
-            state_set PRIV_ESCALATION "doas"
             state_set USE_LUKS "no"
             state_set USE_LVM "no"
             state_set GENERATE_UKI "no"
@@ -163,16 +95,122 @@ tui_quick_install() {
             state_set DISPLAY_MANAGER "lightdm"
             state_set NETWORK_STACK "networkmanager"
             state_set AUDIO_STACK "pipewire"
-            state_set X_STACK "xlibre"
+            state_set X_STACK "xorg"
             state_set USER_SHELL "bash"
-            state_set EXTRAS "git base-devel neovim firefox alacritty tmux fzf zoxide starship eza btop"
+            state_set EXTRAS "git firefox neovim alacritty fzf zoxide starship eza btop tmux mpv"
             ;;
-        *Media*)
-            state_set QUICK_PROFILE "Media"
+        *Cinnamon*)
+            state_set QUICK_PROFILE "Cinnamon"
+            local cinnamon_init
+            cinnamon_init=$(tui_menu "Cinnamon Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
+            state_set INIT "${cinnamon_init}"
             state_set FS_TYPE "ext4"
             state_set BOOTLOADER "grub"
             state_set KERNEL_CHOICE "linux"
-            state_set INIT "openrc"
+            state_set PRIV_ESCALATION "sudo"
+            state_set USE_LUKS "no"
+            state_set USE_LVM "no"
+            state_set GENERATE_UKI "no"
+            state_set ALLOW_OFFLINE "no"
+            state_set ENABLE_ARCH_REPOS "yes"
+            state_set MICROCODE_OVERRIDE "auto"
+            state_set KEEP_BINARY_KERNEL "yes"
+            state_set COREUTILS "gnu"
+            state_set KERNEL_CONFIG_DEPTH "auto"
+            state_set WM_DE "cinnamon"
+            state_set DISPLAY_MANAGER "lightdm"
+            state_set NETWORK_STACK "networkmanager"
+            state_set AUDIO_STACK "pipewire"
+            state_set X_STACK "xorg"
+            state_set USER_SHELL "bash"
+            state_set EXTRAS "git firefox alacritty fzf zoxide starship eza btop tmux mpv"
+            ;;
+        *LXQt*)
+            state_set QUICK_PROFILE "LXQt"
+            local lxqt_init
+            lxqt_init=$(tui_menu "LXQt Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
+            state_set INIT "${lxqt_init}"
+            state_set FS_TYPE "ext4"
+            state_set BOOTLOADER "grub"
+            state_set KERNEL_CHOICE "linux"
+            state_set PRIV_ESCALATION "sudo"
+            state_set USE_LUKS "no"
+            state_set USE_LVM "no"
+            state_set GENERATE_UKI "no"
+            state_set ALLOW_OFFLINE "no"
+            state_set ENABLE_ARCH_REPOS "yes"
+            state_set MICROCODE_OVERRIDE "auto"
+            state_set KEEP_BINARY_KERNEL "yes"
+            state_set COREUTILS "gnu"
+            state_set KERNEL_CONFIG_DEPTH "auto"
+            state_set WM_DE "lxqt"
+            state_set DISPLAY_MANAGER "sddm"
+            state_set NETWORK_STACK "networkmanager"
+            state_set AUDIO_STACK "pipewire"
+            state_set X_STACK "xorg"
+            state_set USER_SHELL "bash"
+            state_set EXTRAS "git firefox alacritty fzf zoxide starship eza btop tmux"
+            ;;
+        *Community GTK*)
+            state_set QUICK_PROFILE "Community GTK"
+            local cgtk_init
+            cgtk_init=$(tui_menu "Community GTK Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
+            state_set INIT "${cgtk_init}"
+            state_set FS_TYPE "ext4"
+            state_set BOOTLOADER "grub"
+            state_set KERNEL_CHOICE "linux"
+            state_set PRIV_ESCALATION "sudo"
+            state_set USE_LUKS "no"
+            state_set USE_LVM "no"
+            state_set GENERATE_UKI "no"
+            state_set ALLOW_OFFLINE "no"
+            state_set ENABLE_ARCH_REPOS "yes"
+            state_set MICROCODE_OVERRIDE "auto"
+            state_set KEEP_BINARY_KERNEL "yes"
+            state_set COREUTILS "gnu"
+            state_set KERNEL_CONFIG_DEPTH "auto"
+            state_set WM_DE "xfce4"
+            state_set DISPLAY_MANAGER "lightdm"
+            state_set NETWORK_STACK "networkmanager"
+            state_set AUDIO_STACK "pipewire"
+            state_set X_STACK "xorg"
+            state_set USER_SHELL "bash"
+            state_set EXTRAS "git firefox thunderbird libreoffice gimp inkscape vlc alacritty fzf zoxide starship eza btop tmux flatpak"
+            ;;
+        *Community Qt*)
+            state_set QUICK_PROFILE "Community Qt"
+            local cqt_init
+            cqt_init=$(tui_menu "Community Qt Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
+            state_set INIT "${cqt_init}"
+            state_set FS_TYPE "ext4"
+            state_set BOOTLOADER "grub"
+            state_set KERNEL_CHOICE "linux"
+            state_set PRIV_ESCALATION "sudo"
+            state_set USE_LUKS "no"
+            state_set USE_LVM "no"
+            state_set GENERATE_UKI "no"
+            state_set ALLOW_OFFLINE "no"
+            state_set ENABLE_ARCH_REPOS "yes"
+            state_set MICROCODE_OVERRIDE "auto"
+            state_set KEEP_BINARY_KERNEL "yes"
+            state_set COREUTILS "gnu"
+            state_set KERNEL_CONFIG_DEPTH "auto"
+            state_set WM_DE "lxqt"
+            state_set DISPLAY_MANAGER "sddm"
+            state_set NETWORK_STACK "networkmanager"
+            state_set AUDIO_STACK "pipewire"
+            state_set X_STACK "xorg"
+            state_set USER_SHELL "bash"
+            state_set EXTRAS "git firefox thunderbird libreoffice gimp inkscape vlc alacritty fzf zoxide starship eza btop tmux flatpak"
+            ;;
+        *Gaming*)
+            state_set QUICK_PROFILE "Gaming"
+            local gaming_init
+            gaming_init=$(tui_menu "Gaming Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
+            state_set INIT "${gaming_init}"
+            state_set FS_TYPE "ext4"
+            state_set BOOTLOADER "grub"
+            state_set KERNEL_CHOICE "linux-zen"
             state_set PRIV_ESCALATION "sudo"
             state_set USE_LUKS "no"
             state_set USE_LVM "no"
@@ -188,75 +226,61 @@ tui_quick_install() {
             state_set DISPLAY_MANAGER "sddm"
             state_set NETWORK_STACK "networkmanager"
             state_set AUDIO_STACK "pipewire"
-            state_set X_STACK "xlibre"
+            state_set X_STACK "xorg"
             state_set USER_SHELL "bash"
-            state_set EXTRAS "git flatpak firefox alacritty mpv feh fzf zoxide starship eza btop tmux"
+            state_set EXTRAS "git flatpak fastfetch firewalld firefox alacritty fzf zoxide starship eza btop tmux mpv steam lutris dosbox lact goverlay mangohud gamemode piper solaar"
             ;;
-        *Volk*)
-            state_set QUICK_PROFILE "Volk"
+        *Server*)
+            state_set QUICK_PROFILE "Server"
+            local server_init
+            server_init=$(tui_menu "Server Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
+            state_set INIT "${server_init}"
             state_set FS_TYPE "ext4"
             state_set BOOTLOADER "grub"
             state_set KERNEL_CHOICE "linux"
-            state_set INIT "dinit"
             state_set PRIV_ESCALATION "doas"
             state_set USE_LUKS "no"
             state_set USE_LVM "no"
             state_set GENERATE_UKI "no"
             state_set ALLOW_OFFLINE "no"
-            state_set ENABLE_ARCH_REPOS "yes"
+            state_set ENABLE_ARCH_REPOS "no"
             state_set MICROCODE_OVERRIDE "auto"
-            state_set POWER_USER "yes"
-            state_set KEEP_BINARY_KERNEL "no"
+            state_set KEEP_BINARY_KERNEL "yes"
             state_set COREUTILS "gnu"
             state_set KERNEL_CONFIG_DEPTH "auto"
-            state_set WM_DE "kde"
-            state_set KDE_PROFILE "minimal"
-            state_set DISPLAY_MANAGER "lightdm"
+            state_set WM_DE "none"
+            state_set DISPLAY_MANAGER "none"
             state_set NETWORK_STACK "dhcpcd+iwd"
-            state_set AUDIO_STACK "pipewire"
-            state_set X_STACK "xlibre"
+            state_set AUDIO_STACK "none"
+            state_set X_STACK "none"
             state_set USER_SHELL "bash"
-            state_set EXTRAS "git fastfetch tmux htop kitty firewalld flatpak"
-            tui_msg_quick "Volk Profile" "This profile builds a minimal source kernel with auto-detected hardware.\n\nNo VirtIO/VM drivers are included — this system will NOT boot in virtual machines."
+            state_set EXTRAS "git firewalld tmux"
             ;;
-        *TestingQP*)
-            state_set QUICK_PROFILE "TestingQP"
-            state_set FS_TYPE "xfs"
-            state_set BOOTLOADER "limine"
-            state_set KERNEL_CHOICE "linux-cachyos-bore"
-            state_set INIT "s6"
+        *Minimal*)
+            state_set QUICK_PROFILE "Minimal"
+            local minimal_init
+            minimal_init=$(tui_menu "Minimal Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
+            state_set INIT "${minimal_init}"
+            state_set FS_TYPE "ext4"
+            state_set BOOTLOADER "grub"
+            state_set KERNEL_CHOICE "linux"
             state_set PRIV_ESCALATION "doas"
-            state_set USE_LUKS "yes"
-            state_set USE_LVM "yes"
-            state_set GENERATE_UKI "yes"
+            state_set USE_LUKS "no"
+            state_set USE_LVM "no"
+            state_set GENERATE_UKI "no"
             state_set ALLOW_OFFLINE "no"
-            state_set ENABLE_ARCH_REPOS "yes"
-            state_set MICROCODE_OVERRIDE "none"
+            state_set ENABLE_ARCH_REPOS "no"
+            state_set MICROCODE_OVERRIDE "auto"
             state_set KEEP_BINARY_KERNEL "yes"
-            state_set COREUTILS "busybox"
+            state_set COREUTILS "gnu"
             state_set KERNEL_CONFIG_DEPTH "auto"
-            state_set WM_DE "mango"
-            state_set DISPLAY_MANAGER "lightdm"
+            state_set WM_DE "none"
+            state_set DISPLAY_MANAGER "none"
             state_set NETWORK_STACK "dhcpcd+iwd"
-            state_set AUDIO_STACK "pipewire"
-            state_set X_STACK "xlibre"
-            state_set USER_SHELL "fish"
-            state_set EXTRAS "git fastfetch tmux htop kitty firewalld flatpak"
-            tui_msg_quick "Testing Profile" "This profile enables every experimental, complex, and potentially broken combination.\n\nIf this installs and boots, you are legally allowed to complain about bugs."
-            ;;
-        *Load*)
-            local profile_file
-            profile_file=$(tui_input "Load Profile" "Enter path to profile file:" "/mnt/etc/artixforge-profile.conf") || return 1
-            if [[ -f "${profile_file}" ]]; then
-                source "${profile_file}"
-                for var in FS_TYPE BOOTLOADER KERNEL_CHOICE INIT PRIV_ESCALATION USE_LUKS USE_LVM GENERATE_UKI ALLOW_OFFLINE ENABLE_ARCH_REPOS MICROCODE_OVERRIDE KEEP_BINARY_KERNEL COREUTILS KERNEL_CONFIG_DEPTH WM_DE KDE_PROFILE DISPLAY_MANAGER NETWORK_STACK AUDIO_STACK X_STACK USER_SHELL EXTRAS POWER_USER POWERUSER_PACKAGES POWERUSER_PROFILE; do
-                    [[ -n "${!var:-}" ]] && state_set "${var}" "${!var}"
-                done
-                tui_msg_quick "Profile Loaded" "Configuration loaded from ${profile_file}"
-            else
-                tui_msg_quick "Error" "Profile file not found: ${profile_file}"
-                return 1
-            fi
+            state_set AUDIO_STACK "none"
+            state_set X_STACK "none"
+            state_set USER_SHELL "bash"
+            state_set EXTRAS ""
             ;;
     esac
 
@@ -284,10 +308,6 @@ tui_quick_install() {
     summary+="LVM: $(state_get USE_LVM no)"$'\n'
     summary+="UKI: $(state_get GENERATE_UKI no)"$'\n'
     summary+="Extras: $(state_get EXTRAS)"
-
-    if [[ "$(state_get INIT openrc)" == "busybox" ]]; then
-        summary+=$'\n'"Power User: yes (BusyBox init, source-built)"$'\n'
-    fi
 
     if ! tui_yesno "Confirm Profile" "${summary}"$'\n\n'"Proceed with this profile?"; then
         return 1

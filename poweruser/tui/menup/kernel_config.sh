@@ -170,11 +170,12 @@ tui_poweruser_feature_flags() {
         if [[ ${#flags[@]} -gt 0 ]]; then
             local chosen
             chosen=$(tui_checklist "${pkg} — Feature Flags" "Select features:" "${flags[@]}") || true
-            if [[ -n "${chosen}" ]]; then
-                state_set "POWERUSER_FEATURES_${pkg//-/_}" "${chosen//$'\n'/ }"
-            else
-                state_set "POWERUSER_FEATURES_${pkg//-/_}" ""
-            fi
+            local flag_file="${POWERUSER_DIR}/package.use/${pkg}"
+            mkdir -p "$(dirname "${flag_file}")"
+            : > "${flag_file}"
+            for flag in ${chosen}; do
+                echo "${flag}" >> "${flag_file}"
+            done
         fi
 
         if [[ "${pkg}" == "linux" ]]; then

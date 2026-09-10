@@ -2,24 +2,29 @@
 set -Eeuo pipefail
 
 create_filesystems() {
-    local disk fs_type swap_enabled
+    local disk fs_type swap_type swap_size
     disk="$(state_get DISK)"
     [[ -b "${disk}" ]] || die "invalid disk: ${disk}"
     fs_type="$(state_get FS_TYPE)"
-    swap_enabled="$(state_get SWAP_ENABLED no)"
+    swap_type="$(state_get SWAP_ENABLED none)"
+    swap_size="$(state_get SWAP_SIZE 0)"
+    local use_swap_partition="no"
+    if [[ "${swap_type}" == "partition" ]]; then
+        use_swap_partition="yes"
+    fi
 
     local efi_part swap_part root_part
 
     if [[ "${ARTIX_BOOT_MODE:-uefi}" == "bios" ]]; then
-        if [[ "${swap_enabled}" == 'yes' ]]; then
+        if [[ "${use_swap_partition}" == "yes" ]]; then
             swap_part=$(get_partition_name "${disk}" 2)
             root_part=$(get_partition_name "${disk}" 3)
         else
             root_part=$(get_partition_name "${disk}" 2)
         fi
 
-        if [[ "${swap_enabled}" == 'yes' && -n "${swap_part:-}" ]]; then
-            log_info "Initializing swap..."
+        if [[ "${use_swap_partition}" == "yes" && -n "${swap_part:-}" ]]; then
+            log_info "Initializing swap partition..."
             [[ -b "${swap_part}" ]] || die "invalid swap partition: ${swap_part}"
             mkswap "${swap_part}"
             swapon "${swap_part}"
@@ -38,8 +43,7 @@ create_filesystems() {
             ext4)     mkfs.ext4 -F "${root_part}" ;;
             btrfs)    mkfs.btrfs -f "${root_part}" ;;
             xfs)
-                local xfs_config="/usr/share/xfsprogs/mkfs/lts_6.6.conf"
-                if [[ -f "${xfs_config}" ]]; then
+                if [[ -f "/usr/share/xfsprogs/mkfs/lts_6.6.conf" ]]; then
                     mkfs.xfs -f -m bigtime=0 "${root_part}"
                 else
                     mkfs.xfs -f -m bigtime=0 "${root_part}"
@@ -75,12 +79,12 @@ create_filesystems() {
     if [[ -n "$(state_get EFI_PART '')" ]]; then
         efi_part="$(state_get EFI_PART)"
         root_part="$(state_get ROOT_PART)"
-        if [[ "$(state_get SWAP_ENABLED no)" == "yes" ]]; then
+        if [[ "${use_swap_partition}" == "yes" ]]; then
             swap_part="$(state_get SWAP_PART)"
         fi
     else
         efi_part=$(get_partition_name "${disk}" 1)
-        if [[ "${swap_enabled}" == 'yes' ]]; then
+        if [[ "${use_swap_partition}" == "yes" ]]; then
             swap_part=$(get_partition_name "${disk}" 2)
             root_part=$(get_partition_name "${disk}" 3)
         else
@@ -100,7 +104,7 @@ create_filesystems() {
     if [[ "$(state_get USE_LUKS no)" != "yes" ]]; then
         wipefs -af "${root_part}" || true
     fi
-    if [[ "${swap_enabled}" == 'yes' && -n "${swap_part:-}" ]]; then
+    if [[ "${use_swap_partition}" == "yes" && -n "${swap_part:-}" ]]; then
         wipefs -af "${swap_part}" || true
     fi
 
@@ -134,8 +138,8 @@ create_filesystems() {
     umount "${tmp_efi_mount}"
     rmdir "${tmp_efi_mount}"
 
-    if [[ "${swap_enabled}" == 'yes' && -n "${swap_part:-}" ]]; then
-        log_info "Initializing swap..."
+    if [[ "${use_swap_partition}" == "yes" && -n "${swap_part:-}" ]]; then
+        log_info "Initializing swap partition..."
         [[ -b "${swap_part}" ]] || die "invalid swap partition: ${swap_part}"
         mkswap "${swap_part}"
         swapon "${swap_part}"
@@ -156,8 +160,7 @@ create_filesystems() {
             btrfs)     mkfs.btrfs -f "${root_lv}" ;;
             ext4)      mkfs.ext4 -F "${root_lv}" ;;
             xfs)
-                local xfs_config="/usr/share/xfsprogs/mkfs/lts_6.6.conf"
-                if [[ -f "${xfs_config}" ]]; then
+                if [[ -f "/usr/share/xfsprogs/mkfs/lts_6.6.conf" ]]; then
                     mkfs.xfs -f -m bigtime=0 "${root_lv}"
                 else
                     mkfs.xfs -f -m bigtime=0 "${root_lv}"
@@ -212,8 +215,7 @@ create_filesystems() {
             ;;
         xfs)
             log_info "Creating XFS filesystem (GRUB-compatible)..."
-            local xfs_config="/usr/share/xfsprogs/mkfs/lts_6.6.conf"
-            if [[ -f "${xfs_config}" ]]; then
+            if [[ -f "/usr/share/xfsprogs/mkfs/lts_6.6.conf" ]]; then
                 mkfs.xfs -f -m bigtime=0 "${fs_target}"
             else
                 mkfs.xfs -f -m bigtime=0 "${fs_target}"

@@ -7,6 +7,7 @@ source "${BOOTLOADER_DIR}/grub.sh"
 source "${BOOTLOADER_DIR}/refind.sh"
 source "${BOOTLOADER_DIR}/efistub.sh"
 source "${BOOTLOADER_DIR}/limine.sh"
+source "${BOOTLOADER_DIR}/uboot.sh"
 
 generate_root_cmdline() {
     local fs_type="${1}"
@@ -274,6 +275,7 @@ configure_bootloader() {
         refind)  bootloader_install_refind ;;
         efistub) bootloader_install_efistub ;;
         limine)  bootloader_install_limine ;;
+        uboot)   bootloader_install_uboot ;;
         *)       die "unsupported bootloader: ${bootloader}" ;;
     esac
 

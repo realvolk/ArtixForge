@@ -8,6 +8,22 @@ detect_kernel_package() {
     KERNEL_HEADERS='';
     KERNEL_AUR='false';
 
+    # ARM64 kernels from ARMtix
+    case "${kernel}" in
+        linux-aarch64)
+            KERNEL_PACKAGE='linux-aarch64';
+            KERNEL_HEADERS='linux-aarch64-headers';
+            return 0 ;;
+        linux-aarch64-lts)
+            KERNEL_PACKAGE='linux-aarch64-lts';
+            KERNEL_HEADERS='linux-aarch64-lts-headers';
+            return 0 ;;
+        linux-radxa)
+            KERNEL_PACKAGE='linux-radxa';
+            KERNEL_HEADERS='linux-radxa-headers';
+            return 0 ;;
+    esac
+
     case "${kernel}" in
         linux)
             KERNEL_PACKAGE='linux';

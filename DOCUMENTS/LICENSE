@@ -1,6 +1,6 @@
-Forge Attribution License 1.0
+IRX License 1.0
 
-Copyright (c) 2026 Volk
+Copyright (c) 2026 realvolk (Volk)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -16,20 +16,138 @@ furnished to do so, subject to the following conditions:
 
 2. Preservation of Authorship
 
-   You may not misrepresent the origin of the Software. You must not claim
-   that the Software was created solely by you or your organization.
+   You may not misrepresent the origin of the Software. You must not claim,
+   imply, or otherwise suggest that the Software was created solely by you
+   or your organization. Nothing in this license requires the removal of
+   attribution notices from source files.
 
 3. Modified Versions
 
    If you modify the Software, you must clearly indicate that changes were
    made. Modified versions must not be presented as the original Software.
 
+   Specifically:
+
+   (a) You shall include a prominent notice in all copies of the modified
+       Software stating that the Software has been modified from its
+       original version, including the name of the modifying party and the
+       year of modification. This notice may be placed in a file such as
+       "NOTICE" or "MODIFICATIONS" included with the distribution, or in
+       documentation accompanying the distribution. Notices required under
+       this section may be combined into a single notice listing all
+       modifying parties, provided the notice clearly identifies that the
+       Software has been modified from its original version and is not the
+       original Software.
+
+   (b) If you distribute a modified version of the Software publicly, you
+       must either:
+
+       (i) use a different project name for the modified version, or
+
+       (ii) prominently display a notice in all user-facing documentation
+            and, where such notices are technically feasible given the
+            nature of the Software, in the Software's user interface,
+            stating that the version is modified and is not the original
+            Software.
+
 4. Names and Marks
 
    This license grants no rights to use the names, trademarks, logos, or
-   project branding of Volk or its projects (including but not limited to
-   "ArtixForge", "VFF", "forge-gui", "forge-tui, "anvil") except for
-   reasonable attribution and factual reference.
+   project branding of the copyright holder or any contributors, except as
+   reasonably necessary for factual attribution as required by this
+   license. Use of any such names, marks, or branding for endorsement,
+   promotion, or advertising of modified versions requires separate prior
+   written permission from the respective owner.
+
+5. Patent Grant
+
+   Each contributor grants you a perpetual, worldwide, non-exclusive,
+   royalty-free, irrevocable (except as stated in this section) patent
+   license to make, have made, use, offer to sell, sell, import, and
+   otherwise transfer the Software, where such license applies only to
+   patent claims licensable by such contributor that are necessarily
+   infringed by their contribution alone or by combination of their
+   contribution with the Software to which the contribution was submitted.
+
+   If you initiate patent litigation (including a cross-claim or
+   counterclaim in a lawsuit) against any entity alleging that the Software
+   itself, or any contribution incorporated within the Software,
+   constitutes direct or contributory patent infringement, then the patent
+   license granted to you under this section shall terminate as of the date
+   such litigation is filed. All other rights granted under this license
+   shall remain unaffected.
+
+6. Contributions
+
+   For purposes of this license, "copyright holder" means the original
+   copyright holder and any subsequent copyright holders of the Software.
+
+   Any contribution intentionally submitted for inclusion in the Software
+   by any person or entity shall be licensed under the terms of this
+   license, unless the contribution is submitted under different terms
+   explicitly agreed to in writing by the copyright holder(s). Such
+   different terms apply only to that specific contribution and not to the
+   project as a whole.
+
+   The copyright holder(s) retain(s) the right to distribute contributions
+   under this license and any future versions of this license, provided
+   that such future versions are no less permissive than the version under
+   which the contribution was submitted.
+
+7. Termination
+
+   If you violate the terms of this license, your rights under this license
+   shall terminate automatically upon the expiration of a thirty (30) day
+   cure period, unless you cure the violation within that period. The cure
+   period begins on the earlier of: (a) the date you become aware of the
+   violation, or (b) the date you receive written notice of the violation
+   from the copyright holder(s).
+
+   If the violation is cured within the cure period, your rights under this
+   license shall be reinstated automatically, effective as of the date of
+   cure.
+
+   Termination of rights under this license shall be effective as of the
+   date the cure period expires without cure, and shall not be applied
+   retroactively to any use, modification, or distribution that occurred
+   prior to such date.
+
+   Distribution that occurred prior to termination shall not constitute a
+   violation of this license, provided such distribution was lawful at the
+   time it occurred.
+
+   Termination applies only to the party in violation. All other licensees
+   retain their rights under this license.
+
+   Upon termination, the violating party shall cease distribution of the
+   Software. Continued use of copies already in the violating party's
+   possession shall be governed by applicable law.
+
+   Licenses granted to third parties who received copies of the Software
+   from the violating party prior to termination shall survive, provided
+   such third parties are not themselves in violation of this license.
+
+8. Severability
+
+   If any provision of this license is held to be unenforceable or invalid
+   by a court of competent jurisdiction, such provision shall be severed
+   from this license, and the remaining provisions shall remain in full
+   force and effect. The invalidity or unenforceability of any provision
+   shall not affect the core grant of rights set forth in Section 1 of
+   this license.
+
+9. Optional Endorsement Clause
+
+   If the copyright holder explicitly states in the project's
+   documentation, in a separate file (such as "LICENSE-EXCEPTIONS"), or in
+   the Software itself that this clause applies, then use of the Software
+   to create, build, or generate separate works does not, by itself, cause
+   those works to be considered modified versions of the Software under
+   this license. Attribution and other obligations under this license apply
+   only to the Software itself, not to outputs, artifacts, or derivative
+   works created through its use.
+
+10. Disclaimer of Warranty
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
