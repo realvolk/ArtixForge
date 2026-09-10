@@ -54,24 +54,27 @@ configure_users() {
     priv_esc="$(state_get PRIV_ESCALATION sudo)"
     wm_de="$(state_get WM_DE none)"
 
-    local user_json user_count
+    local user_json
     user_json="$(state_get USER_COUNT '')"
 
-    if [[ -n "${user_json}" && "${user_json}" != "0" && "${user_json}" != "[]" ]]; then
-        user_count=$(echo "${user_json}" | jq '. | length')
-        for ((i=0; i<user_count; i++)); do
-            local idx=$((i+1))
-            state_set "USER_${idx}_NAME"  "$(echo "${user_json}" | jq -r ".[$i].name // empty")"
-            state_set "USER_${idx}_PASS"  "$(echo "${user_json}" | jq -r ".[$i].pass // empty")"
-            state_set "USER_${idx}_SHELL" "$(echo "${user_json}" | jq -r ".[$i].shell // \"/bin/bash\"")"
-            state_set "USER_${idx}_SUDO"  "$(echo "${user_json}" | jq -r ".[$i].sudo // true")"
-            state_set "USER_${idx}_DE"    "$(echo "${user_json}" | jq -r ".[$i].de // empty")"
-            state_set "USER_${idx}_DOTFILES" "$(echo "${user_json}" | jq -r ".[$i].dotfiles // empty")"
-            local groups_json
-            groups_json=$(echo "${user_json}" | jq -r ".[$i].groups // [\"wheel\",\"audio\",\"video\",\"storage\"] | join(\",\")")
-            state_set "USER_${idx}_GROUPS" "${groups_json}"
-        done
-        state_set USER_COUNT "${user_count}"
+    if [[ "${user_json}" =~ ^\[.*\]$ ]]; then
+        local array_count
+        array_count=$(echo "${user_json}" | jq '. | length' 2>/dev/null || echo 0)
+        if [[ "${array_count}" -gt 0 ]]; then
+            for ((i=0; i<array_count; i++)); do
+                local idx=$((i+1))
+                state_set "USER_${idx}_NAME"  "$(echo "${user_json}" | jq -r ".[$i].name // empty")"
+                state_set "USER_${idx}_PASS"  "$(echo "${user_json}" | jq -r ".[$i].pass // empty")"
+                state_set "USER_${idx}_SHELL" "$(echo "${user_json}" | jq -r ".[$i].shell // \"/bin/bash\"")"
+                state_set "USER_${idx}_SUDO"  "$(echo "${user_json}" | jq -r ".[$i].sudo // true")"
+                state_set "USER_${idx}_DE"    "$(echo "${user_json}" | jq -r ".[$i].de // empty")"
+                state_set "USER_${idx}_DOTFILES" "$(echo "${user_json}" | jq -r ".[$i].dotfiles // empty")"
+                local groups_json
+                groups_json=$(echo "${user_json}" | jq -r ".[$i].groups // [\"wheel\",\"audio\",\"video\",\"storage\"] | join(\",\")")
+                state_set "USER_${idx}_GROUPS" "${groups_json}"
+            done
+            state_set USER_COUNT "${array_count}"
+        fi
     fi
 
     if [[ ${USER_COUNT:-0} -eq 0 ]]; then

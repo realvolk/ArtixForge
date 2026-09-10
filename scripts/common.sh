@@ -289,15 +289,25 @@ recoverable_error() {
             "Update ArtixForge"*)
                 log_info "Updating ArtixForge from GitHub..."
                 local update_dir="/tmp/artixforge-update"
+                local current_branch
+                current_branch="$(git -C "${BASE_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
                 rm -rf "${update_dir}"
-                git clone --depth 1 https://github.com/realvolk/ArtixForge.git "${update_dir}" || {
+                git clone --depth 1 --branch "${current_branch}" \
+                    https://github.com/realvolk/ArtixForge.git "${update_dir}" || {
                     log_warn "Update failed – check network"
                     continue
                 }
+                if [[ ! -f "${update_dir}/install" ]]; then
+                    log_warn "Update failed – invalid payload (no install script)"
+                    rm -rf "${update_dir}"
+                    continue
+                fi
+                find "${BASE_DIR}" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
                 cp -a "${update_dir}/." "${BASE_DIR}/"
+                chmod +x "${BASE_DIR}/install"
                 rm -rf "${update_dir}"
                 log_info "ArtixForge updated. Restarting installer – use Resume to continue."
-                exec sudo "${BASE_DIR}/install"
+                exec "${BASE_DIR}/install"
                 ;;
             "Abort")
                 die "Installation aborted by user"

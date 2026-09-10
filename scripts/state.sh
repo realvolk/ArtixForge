@@ -213,9 +213,12 @@ state_save() {
     local tmp_state="${STATE_FILE}.tmp"
     local user_json user_count
     user_json=$(state_get USER_COUNT '')
-    user_count=0
-    if [[ -n "${user_json}" && "${user_json}" != "0" && "${user_json}" != "[]" ]]; then
+    if [[ "${user_json}" =~ ^\[.*\]$ ]]; then
         user_count=$(echo "${user_json}" | jq '. | length' 2>/dev/null || echo 0)
+    elif [[ "${user_json}" =~ ^[0-9]+$ ]]; then
+        user_count="${user_json}"
+    else
+        user_count=1
     fi
     {
         printf "MODE='%s'\n"                  "$(state_get MODE auto)"
