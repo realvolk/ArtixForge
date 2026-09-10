@@ -495,6 +495,14 @@ main() {
         fi
     fi
 
+    if ! command -v jq &>/dev/null; then
+        printf '[*] jq not found. Installing...\n'
+        pacman -Sy --noconfirm jq 2>/dev/null || {
+            printf '[!] Failed to install jq. Install it manually and retry.\n' >&2
+            exit 1
+        }
+    fi
+
     _artix_welcome
     sleep 1
 

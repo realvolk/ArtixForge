@@ -207,9 +207,7 @@ A debug toggle is available for every mode.
 
 # Dependencies
 
-- **TUI:** `gum` (installed automatically if missing).
-
-Everything else is handled by the installer.
+Everything is handled by the installer. `gum` and `jq` are installed automatically if missing.
 
 ---
 
