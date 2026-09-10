@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+_payload_apply() {
+    local src="$1"
+    [[ -d "$src" ]] || return 0
+    cp -rL --preserve=mode,timestamps "${src}/." /mnt/ || {
+        log_error "Overlay copy failed: ${src}"
+        return 1
+    }
+}
+
+_payload_filter_caches() {
+    find /mnt/etc/skel /mnt/root \
+        -type d \( -name '.cache' -o -path '*/.config/dconf' \) \
+        -prune -exec rm -rf {} + 2>/dev/null || true
+    find /mnt/etc/skel /mnt/root \
+        -type f -path '*/.local/share/Trash/*' \
+        -delete 2>/dev/null || true
+}
+
+stage_payload() {
+    if stage_should_skip payload; then return 0; fi
+
+    local profile
+    profile="$(state_get QUICK_PROFILE '')"
+    [[ -n "$profile" ]] || {
+        log_info "No Quick Profile selected — skipping payload"
+        stage_mark_done payload
+        return 0
+    }
+
+    iso_profiles_available || {
+        log_warn "iso-profiles unavailable — skipping payload"
+        stage_mark_done payload
+        return 0
+    }
+
+    local root="${ISO_PROFILES_ROOT}/${profile}/root-overlay"
+    if [[ ! -d "$root" ]]; then
+        log_warn "No root-overlay for profile '${profile}'"
+        stage_mark_done payload
+        return 0
+    fi
+
+    log_info "Applying payload overlay for profile: ${profile}"
+
+    _payload_apply "${ISO_PROFILES_ROOT}/common/root-overlay"       || die "common overlay failed"
+    _payload_apply "${ISO_PROFILES_ROOT}/common/community/root-overlay" || die "community overlay failed"
+
+    case "$profile" in
+        community-gtk|mate|cinnamon|xfce|lxde)
+            _payload_apply "${ISO_PROFILES_ROOT}/common/gtk/root-overlay" || die "gtk overlay failed"
+            ;;
+        community-qt|plasma|lxqt)
+            _payload_apply "${ISO_PROFILES_ROOT}/common/qt/root-overlay"  || die "qt overlay failed"
+            ;;
+    esac
+
+    _payload_apply "$root" || die "profile overlay failed"
+
+    _payload_filter_caches
+
+    install -Dm644 /dev/null "/mnt/.artixforge-payload-${profile}"
+    stage_mark_done payload
+}

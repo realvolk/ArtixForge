@@ -442,4 +442,40 @@ the current schedule.
 
 ---
 
+## iso-profiles integration
+
+### Two `common.yaml` implementations collided
+`iso/common.sh:generate_common_yaml` was generating its own
+`common/common.yaml` under the artools workspace, parallel to the upstream
+file shipped by the `iso-profiles` package at
+`/usr/share/artools/iso-profiles/common/common.yaml`. Two files, same name,
+same purpose, different content, different locations. The install-time
+payload path (`scripts/iso-profiles.sh`) reads upstream; the ISO build path
+was generating its own. They were always going to drift.
+
+Resolution: deleted `generate_common_yaml`. Upstream is used unmodified. The
+ISO build path now extends an upstream base profile with ArtixForge
+additions rather than generating from scratch.
+
+### Overlay copying uses `cp -rL`, not `cp -a`
+Symlinks in the upstream `root-overlay` trees are dereferenced and copied as
+regular files. Per Artix dev `nous`. Do not "fix" this to preserve symlinks;
+the overlays assume the target filesystem will not have the same symlink
+targets as the build environment, and dereferencing is intentional.
+
+### `PROFILE_PACKAGES` crosses the chroot boundary via export, not conf
+The chroot-side post-stage scripts (`scripts/post/*.sh`) get state via
+**exported environment variables inside `stage_post`'s heredoc**, not by
+sourcing `/mnt/etc/artix-installer.conf`. The conf file is written by
+`handoff.sh` but nothing inside the chroot reads it. Any new state key that
+must be visible in the chroot needs an explicit `export KEY="${value}"` line
+in `stage_post`, or it silently defaults to empty via the
+`"${!key:-${default}}"` fallback in `state_get`.
+
+This bit me once with `PROFILE_PACKAGES` — the desktop post stage was
+silently getting an empty string and the profile package list was never
+appended.
+
+---
+
 *This document grows as new hacks are added.*

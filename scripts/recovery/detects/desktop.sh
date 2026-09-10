@@ -9,6 +9,7 @@ detect_desktop() {
         [sway]=sway
         [xfce4]=xfce4
         [lxqt]=lxqt
+        [mate]=mate
         [i3-wm]=i3wm
         [dwm]=dwm
         [vxwm]=vxwm

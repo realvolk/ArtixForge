@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v9.4.0.2-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/Version-v9.4.0.3-blue?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/Stable-v9.1.1.4-3572a5?style=flat-square" alt="Stable Release">
   <img src="https://img.shields.io/badge/Artix-[galaxy--gremlins]-blue?style=flat-square&logo=artixlinux" alt="Artix Galaxy-Gremlins">
   <img src="https://img.shields.io/badge/Language-Bash-4EAA25?style=flat-square&logo=gnu-bash" alt="Bash">
@@ -116,7 +116,7 @@ A debug toggle is available for every mode.
 | Storage | Standard partitions, LVM, LUKS, LVM-on-LUKS |
 | Boot method | UKI, GRUB, rEFInd, EFIStub, Limine |
 | Kernel | linux, zen, lts, hardened, libre, cachyos-*, bazzite, xanmod, tkg |
-| Desktop | KDE Plasma, XFCE, LXQt, LXDE, Hyprland, Sway, Niri, i3, dwm, vxwm, IceWM, MangoWM, Cinnamon, Budgie, Moksha, COSMIC, none |
+| Desktop | KDE Plasma, XFCE, LXQt, LXDE, Hyprland, Sway, Niri, i3, dwm, vxwm, IceWM, MangoWM, Cinnamon, Budgie, Moksha, COSMIC, MATE, none |
 | Network | NetworkManager, dhcpcd+iwd, ConnMan, none |
 | Audio | PipeWire, PulseAudio, none |
 | Shell | bash, zsh, fish |

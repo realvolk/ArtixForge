@@ -166,6 +166,8 @@ fi
 source "${SCRIPT_DIR}/common.sh"
 source "${SCRIPT_DIR}/state.sh"
 source "${SCRIPT_DIR}/kernels.sh"
+source "${SCRIPT_DIR}/yaml.sh"
+source "${SCRIPT_DIR}/iso-profiles.sh"
 source "${BASE_DIR}/iso/tui.sh" 2>/dev/null || true
 source_tree tui storage install post stages
 
@@ -317,6 +319,7 @@ run_install_pipeline() {
     stage_storage   || die 'storage stage failed'
     stage_base      || die 'base stage failed'
     [[ "$(state_get POWER_USER no)" == "yes" ]] && stage_poweruser || true
+    stage_payload   || die 'payload stage failed'
     stage_chroot    || die 'chroot stage failed'
     stage_init      || die 'init configuration stage failed'
     stage_post      || die 'post-install stage failed'
@@ -503,6 +506,7 @@ main() {
         }
     fi
 
+    iso_profiles_validate || true
     _artix_welcome
     sleep 1
 

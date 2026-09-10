@@ -437,6 +437,13 @@ stage_validate() {
         init)       return 0 ;;
         post)       [[ -d /mnt/home || -d /mnt/root ]] ;;
         finalize)   return 0 ;;
+        payload)
+            local profile marker
+            profile="$(state_get QUICK_PROFILE '')"
+            [[ -z "$profile" ]] && return 0
+            marker="/mnt/.artixforge-payload-${profile}"
+            [[ -f "$marker" ]]
+            ;;
         *)          return 1 ;;
     esac
 }
@@ -451,6 +458,7 @@ stage_reset_from() {
         storage \
         base \
         poweruser \
+        payload \
         chroot \
         init \
         post \

@@ -34,7 +34,22 @@ iso_target_state_init() {
 }
 
 tui_iso_live_config() {
-    tui_select_desktop
+    local base_profile
+    if iso_profiles_available; then
+        local -a profiles=()
+        mapfile -t profiles < <(iso_profiles_list)
+        if [[ "${#profiles[@]}" -gt 0 ]]; then
+            base_profile=$(tui_menu "Base Profile" "Select an upstream iso-profiles base:" "${profiles[@]}") || return 1
+        fi
+    fi
+    if [[ -z "${base_profile:-}" ]]; then
+        tui_select_desktop
+        base_profile="$(iso_profile_for_de "$(state_get WM_DE none)")"
+    else
+        tui_select_desktop
+    fi
+    state_set ISO_BASE_PROFILE "${base_profile}"
+
     tui_select_display_manager
     tui_select_xstack
     tui_select_init
@@ -65,9 +80,9 @@ tui_iso_live_config() {
 
 tui_iso_target_config() {
     tui_msg_quick "Offline Configuration" "Configure the system you will later install.\nThese packages will be bundled for offline installation."
-    
+
     cp /tmp/artix-installer/state.conf /tmp/artix-installer/live-state-temp.conf 2>/dev/null || true
-    
+
     tui_select_init
     tui_select_filesystem
     tui_select_btrfs_layout
@@ -94,7 +109,7 @@ tui_iso_target_config() {
     tui_select_root_password
     tui_show_sanity_warnings
     state_set DISK ""
-    
+
     cp /tmp/artix-installer/state.conf /tmp/artix-installer/iso-target-state.conf
     cp /tmp/artix-installer/live-state-temp.conf /tmp/artix-installer/state.conf
     rm -f /tmp/artix-installer/live-state-temp.conf
@@ -166,6 +181,7 @@ start_iso_build() {
         state_set AUDIO_STACK "none"
         state_set NETWORK_STACK "networkmanager"
         state_set QUICK_PROFILE "Installer"
+        state_set ISO_BASE_PROFILE "base"
     fi
 
     if tui_yesno "Additional Packages" "Would you like to add extra packages to the ISO?"; then
@@ -186,10 +202,11 @@ start_iso_build() {
     mkdir -p "${iso_output_dir}"
     state_set ISO_OUTPUT_DIR "${iso_output_dir}"
 
-    local profile_name init kernel offline
+    local profile_name init kernel offline base_profile
     profile_name="$(state_get QUICK_PROFILE "Custom")"
     init="$(state_get INIT "openrc")"
     kernel="$(state_get KERNEL_CHOICE "linux")"
+    base_profile="$(state_get ISO_BASE_PROFILE "base")"
 
     offline="no"
     if tui_yesno "Offline ISO" "Include all packages for offline installation?"; then
@@ -202,5 +219,5 @@ start_iso_build() {
     fi
 
     source "${ISO_DIR}/build.sh"
-    build_artix_iso "${profile_name}" "${init}" "${kernel}" "${offline}" "${boot_mode}" "${iso_output_dir}"
+    build_artix_iso "${profile_name}" "${init}" "${kernel}" "${offline}" "${boot_mode}" "${iso_output_dir}" "${base_profile}"
 }

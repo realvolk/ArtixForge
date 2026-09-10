@@ -6,9 +6,9 @@ BASE_DIR="${BASE_DIR:-$(cd -- "${ISO_DIR}/.." && pwd)}"
 
 build_nonrepo_for_offline() {
     local kernel_name="${1}" chroot_dir="${2}" repo_dir="${3}"
-    
+
     log_info "Building ${kernel_name} for offline bundle..."
-    
+
     case "${kernel_name}" in
         linux-bazzite-bin)
             artix-chroot "${chroot_dir}" bash -c "
@@ -74,8 +74,22 @@ REPO_EOF
             return 1
             ;;
     esac
-    
+
     return 0
+}
+
+_iso_build_restore() {
+    local mount_sh="/usr/share/artools/lib/iso/mount.sh"
+    local mount_sh_backup="${mount_sh}.orig"
+    local buildiso_bin="/usr/bin/buildiso"
+    local buildiso_backup="${buildiso_bin}.orig"
+
+    if [[ -f "${mount_sh_backup}" ]]; then
+        mv "${mount_sh_backup}" "${mount_sh}" 2>/dev/null || true
+    fi
+    if [[ -f "${buildiso_backup}" ]]; then
+        mv "${buildiso_backup}" "${buildiso_bin}" 2>/dev/null || true
+    fi
 }
 
 build_artix_iso() {
@@ -85,6 +99,7 @@ build_artix_iso() {
     local offline="${4:-no}"
     local boot_mode="${5:-live}"
     local user_output_dir="${6:-${HOME}/ArtixForge-ISO}"
+    local base_profile="${7:-base}"
 
     local workspace
     if [[ -d /run/artix/sfs/rootfs ]]; then
@@ -102,6 +117,8 @@ build_artix_iso() {
     local iso_stage
     iso_stage="$(cat "${iso_stage_file}" 2>/dev/null || echo "init")"
     log_info "ISO build stage: ${iso_stage}"
+
+    trap '_iso_build_restore' EXIT
 
     if ! command -v buildiso >/dev/null; then
         log_info "Installing artools and iso-profiles..."
@@ -123,45 +140,41 @@ build_artix_iso() {
     fi
 
     if [[ "${iso_stage}" == "init" || "${iso_stage}" == "profile" ]]; then
-        log_info "Generating artools profile for ${profile_name} (${init}, ${boot_mode} mode)..."
+        log_info "Extending upstream '${base_profile}' profile for ${profile_name} (${init}, ${boot_mode} mode)..."
         source "${ISO_DIR}/common.sh"
-        generate_common_yaml "${workspace}"
-        generate_artools_profile "${iso_profile_dir}" "${profile_name}" "${init}" "${kernel}" "${boot_mode}"
-
+        generate_artools_profile "${iso_profile_dir}" "${profile_name}" "${init}" "${kernel}" "${boot_mode}" "${base_profile}"
         export WORKSPACE_DIR="${workspace}"
-        cp -a "${iso_profile_dir}" /usr/share/artools/iso-profiles/"${profile_name}" 2>/dev/null || true
         echo "profile" > "${iso_stage_file}"
     else
         log_info "Skipping profile generation (already done)"
         source "${ISO_DIR}/common.sh"
         export WORKSPACE_DIR="${workspace}"
-        cp -a "${iso_profile_dir}" /usr/share/artools/iso-profiles/"${profile_name}" 2>/dev/null || true
     fi
 
     if [[ "${offline}" == "yes" ]]; then
         if [[ "${iso_stage}" == "profile" || "${iso_stage}" == "offline" ]]; then
             source "${ISO_DIR}/offline.sh"
             log_info "Building offline package repository..."
-            
-            local offline_pkg_list="${iso_profile_dir}/packages.x86_64"
-            
+
+            local offline_pkg_list="${iso_profile_dir}/packages-offline.x86_64"
+
             if [[ -f /tmp/artix-installer/iso-target-state.conf ]]; then
                 log_info "Generating target system package list from target state..."
                 source /tmp/artix-installer/iso-target-state.conf
                 local target_kernel="${KERNEL_CHOICE:-linux}"
-                
+
                 case "${target_kernel}" in
                     linux|linux-zen|linux-lts|linux-hardened|linux-libre)
-                        generate_iso_package_list "${INIT:-openrc}" "${target_kernel}" > "${iso_profile_dir}/packages-target.x86_64"
+                        generate_offline_package_list "${INIT:-openrc}" "${target_kernel}" > "${iso_profile_dir}/packages-target.x86_64"
                         offline_pkg_list="${iso_profile_dir}/packages-target.x86_64"
                         ;;
                     *)
                         log_info "Non-repo kernel '${target_kernel}' — building for offline bundle..."
-                        generate_iso_package_list "${INIT:-openrc}" "linux" > "${iso_profile_dir}/packages-target.x86_64"
+                        generate_offline_package_list "${INIT:-openrc}" "linux" > "${iso_profile_dir}/packages-target.x86_64"
                         offline_pkg_list="${iso_profile_dir}/packages-target.x86_64"
-                        
+
                         buildiso -p "${profile_name}" -i "${init}" -c -x ${arch_flag} 2>&1 || die "buildiso -x failed for offline kernel build"
-                        
+
                         local chroot_dir=""
                         local search_paths=(
                             "/var/lib/artools/buildiso/${profile_name}/artix/rootfs"
@@ -174,23 +187,23 @@ build_artix_iso() {
                             fi
                         done
                         [[ -z "${chroot_dir}" ]] && chroot_dir=$(find "${workspace}" -type d -name rootfs -path "*/artix/rootfs" 2>/dev/null | head -n1)
-                        
+
                         if [[ -n "${chroot_dir}" && -d "${chroot_dir}" ]]; then
                             mkdir -p "${iso_profile_dir}/airootfs/mnt/repo"
                             if ! build_nonrepo_for_offline "${target_kernel}" "${chroot_dir}" "${iso_profile_dir}/airootfs/mnt/repo"; then
                                 log_warn "Falling back to linux for offline bundle"
-                                generate_iso_package_list "${INIT:-openrc}" "linux" > "${iso_profile_dir}/packages-target.x86_64"
+                                generate_offline_package_list "${INIT:-openrc}" "linux" > "${iso_profile_dir}/packages-target.x86_64"
                                 offline_pkg_list="${iso_profile_dir}/packages-target.x86_64"
                             fi
                         else
                             log_warn "Could not create chroot for kernel build — falling back to linux"
-                            generate_iso_package_list "${INIT:-openrc}" "linux" > "${iso_profile_dir}/packages-target.x86_64"
+                            generate_offline_package_list "${INIT:-openrc}" "linux" > "${iso_profile_dir}/packages-target.x86_64"
                             offline_pkg_list="${iso_profile_dir}/packages-target.x86_64"
                         fi
                         ;;
                 esac
             fi
-            
+
             build_offline_repo "${iso_profile_dir}/airootfs/mnt/repo" "${offline_pkg_list}"
             mkdir -p "${iso_profile_dir}/airootfs/etc"
             cat > "${iso_profile_dir}/airootfs/etc/pacman.conf" <<'PACMAN'
@@ -244,7 +257,7 @@ PACMAN
     if [[ ${needs_chroot_build} -eq 1 ]]; then
         if [[ "${iso_stage}" == "offline" || "${iso_stage}" == "profile" || "${iso_stage}" == "chroot" ]]; then
             log_info "Non-repo packages detected. Building chroot first..."
-            
+
             buildiso -p "${profile_name}" -i "${init}" -c -x ${arch_flag} 2>&1 || die "buildiso -x failed"
 
             local chroot_dir=""
@@ -264,7 +277,6 @@ PACMAN
 
             if [[ -n "${chroot_dir}" && -d "${chroot_dir}" ]]; then
                 log_info "Entering chroot at ${chroot_dir} to build non-repo packages..."
-                # (MangoWM, vxwm, bazzite build blocks unchanged)
                 if [[ "${wm_de}" == "mango" ]]; then
                     log_info "Building MangoWM from AUR..."
                     artix-chroot "${chroot_dir}" bash -c "
@@ -342,15 +354,8 @@ PACMAN
         log_info "ISO already built — locating existing ISO..."
     fi
 
-    if [[ -f "${mount_sh_backup}" ]]; then
-        mv "${mount_sh_backup}" "${mount_sh}"
-    fi
-    if [[ -f "${buildiso_backup}" ]]; then
-        mv "${buildiso_backup}" "${buildiso_bin}"
-    fi
     rm -rf /usr/share/artools/iso-profiles/"${profile_name}" 2>/dev/null || true
 
-    # Cleanup stage file on success
     rm -f "${iso_stage_file}"
 
     log_info "Build complete. Locating ISO..."

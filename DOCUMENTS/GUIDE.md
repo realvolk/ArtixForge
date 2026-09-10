@@ -142,6 +142,7 @@ Your graphical interface.
 | dwm | Tiling window manager | Minimal, configured via source code |
 | IceWM | Stacking window manager | Extremely light, familiar look |
 | MangoWM | Wayland compositor | Lightweight, active development |
+| MATE | Full desktop | Traditional GNOME 2 fork, actively maintained |
 | none | No desktop | You'll start from a terminal |
 
 All of these can produce a comfortable environment. KDE and XFCE are the most popular; Hyprland and Sway are great if you like tinkering.

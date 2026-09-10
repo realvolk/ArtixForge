@@ -86,6 +86,7 @@ _desktop_packages_for() {
         budgie)   pkgs=(budgie-desktop budgie-screensaver budgie-control-center lightdm lightdm-gtk-greeter "lightdm-${init}" xdg-desktop-portal-gtk) ;;
         moksha)   pkgs=(moksha terminology lightdm lightdm-gtk-greeter "lightdm-${init}") ;;
         cosmic)   pkgs=(cosmic cosmic-terminal cosmic-text-editor cosmic-files cosmic-settings cosmic-launcher lightdm lightdm-gtk-greeter "lightdm-${init}") ;;
+        mate)     pkgs=(mate mate-extra lightdm lightdm-gtk-greeter "lightdm-${init}" xdg-desktop-portal-gtk) ;;
         *)
             return 0
             ;;
@@ -155,6 +156,12 @@ install_desktop() {
         lightdm) all_pkgs+=(lightdm lightdm-gtk-greeter "lightdm-${init}") ;;
         sddm)    all_pkgs+=(sddm "sddm-${init}") ;;
     esac
+
+    if [[ -n "$(state_get PROFILE_PACKAGES '')" ]]; then
+        local -a profile_pkgs
+        read -ra profile_pkgs <<< "$(state_get PROFILE_PACKAGES '')"
+        all_pkgs+=("${profile_pkgs[@]}")
+    fi
 
     all_pkgs=($(printf '%s\n' "${all_pkgs[@]}" | sort -u))
 

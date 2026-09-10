@@ -104,6 +104,11 @@ checks both the sentinel and the actual state of the environment (via
 invalid (e.g., `/mnt` is empty after a reboot), the stage is reset and
 re-run. This enables crash-resume.
 
+The `payload` stage uses a **target-side marker** in addition to the local
+sentinel: `/mnt/.artixforge-payload-<profile>`. `stage_validate payload`
+checks the marker, not the sentinel, so the stage is only considered valid
+if its overlay was actually applied to the target.
+
 ### 3.7 Adding a State Key
 
 To add a new configuration option, you must:
@@ -112,7 +117,13 @@ To add a new configuration option, you must:
 2. Add the key to the `state_save` function so it persists across resume.
 3. Add the key to `handoff.sh` so it is written to
    `/mnt/etc/artix-installer.conf` on the target system.
-4. Add the key to `lint_state` if it has validation requirements.
+4. If the key must be visible **inside the chroot post stage** (i.e. read
+   by anything under `scripts/post/`), add an `export KEY="${value}"` line
+   inside `stage_post`'s heredoc in `scripts/stages/post.sh`. Writing to
+   `/mnt/etc/artix-installer.conf` alone is not sufficient — nothing
+   inside the chroot sources that file. The post-stage scripts get state
+   via exported environment variables, not via the conf file.
+5. Add the key to `lint_state` if it has validation requirements.
 
 ---
 
@@ -144,10 +155,13 @@ layout, users, and sanity warnings.
 
 ### 4.3 Quick Profiles
 
-Quick Profiles are pre-defined configuration presets in `quick_profiles.sh`.
-They set multiple state keys at once for common use cases (Base, Plasma,
-XFCE, Cinnamon, LXQt, Community GTK, Community Qt, Gaming, Server,
-Minimal).
+Quick Profiles come in two forms. When the `iso-profiles` package is
+installed and `/usr/share/artools/iso-profiles/{common,base}` exist,
+`quick_profiles.sh` offers upstream Artix profiles via `iso_profiles_list`
+and loads their package sets into `PROFILE_PACKAGES` via
+`quick_profile_load`. The hardcoded presets remain as a fallback when
+upstream profiles are unavailable, and both paths share a common finalize
+step (hostname, timezone, locale, keyboard, users, summary, customize).
 
 ---
 
@@ -162,6 +176,7 @@ implemented as a separate script:
 | storage | `storage.sh` | Partitioning, filesystem creation, mounting |
 | base | `base.sh` | `basestrap` base system, kernel, init |
 | poweruser | `poweruser.sh` | Source-based package compilation |
+| payload | `payload.sh` | Applies `root-overlay` trees from upstream iso-profiles for the selected Quick Profile |
 | chroot | `chroot.sh` | System configuration, users, bootloader |
 | init | `init.sh` | BusyBox init setup (if applicable) |
 | post | `post.sh` | Desktop, drivers, audio, extras |
@@ -176,8 +191,11 @@ Each stage script follows the same pattern:
 
 Stages are called sequentially by `run_install_pipeline` in `install`.
 The Power User stage is only executed if `POWER_USER=yes` in the state.
-Before any stage runs, `lint_state` validates the state file and
-`_validate_post_install_script` checks the post-install script path if set.
+The payload stage is only executed if `QUICK_PROFILE` is set; it
+self-skips cleanly when no profile is selected or when `iso-profiles` is
+unavailable. Before any stage runs, `lint_state` validates the state file
+and `_validate_post_install_script` checks the post-install script path if
+set.
 
 ---
 
@@ -223,7 +241,9 @@ Each script in `post/` is sourced inside a chroot and configures one
 aspect of the installed system:
 
 - `desktop.sh` — installs DE/WM, display manager, display stack.
-  Multi-DE install from system and per-user keys.
+  Multi-DE install from system and per-user keys. Appends
+  `PROFILE_PACKAGES` from the selected Quick Profile before dedup and
+  install.
 - `drivers.sh` — GPU drivers, VM guest agents, Nouveau fallback.
 - `audio.sh` — PipeWire or PulseAudio setup.
 - `networking.sh` — NetworkManager, dhcpcd+iwd, or ConnMan.
@@ -264,9 +284,23 @@ Migration keys are persisted through `state_save`.
 
 ### 6.7 ISO Builder (`iso/`)
 
-A wrapper around `artools` that generates a `profile.yaml` from the state
-file, runs `buildiso`, and produces a bootable ISO. Supports offline
-mode, non-repo kernel builds, and ARM aarch64 targets.
+A wrapper around `artools` that **extends an upstream `iso-profiles` base
+profile** with ArtixForge-specific additions:
+
+- `profile-artixforge.yaml` — live session user, services, and per-init
+  packages layered on top of the upstream profile.
+- `live-overlay/` — installer-ISO auto-boot hooks for openrc/dinit/runit/s6
+  (written only in installer-ISO mode; upstream `live-overlay/` content is
+  preserved otherwise).
+- `airootfs/root/ArtixForge/` — the installer tree, baked into the ISO.
+- `packages-offline.x86_64` — package list used by `build_offline_repo`
+  for offline bundle downloads.
+
+The extended profile lives in the artools workspace and is **not** written
+back to `/usr/share/artools/iso-profiles/` — that would shadow upstream
+profile directories and risk cross-contamination between the ISO build
+path and the install-time payload path. Supports offline mode, non-repo
+kernel builds, and ARM aarch64 targets.
 
 ### 6.8 Power User (`poweruser/`)
 
@@ -283,6 +317,30 @@ A complete source-based package manager implemented in Bash. Key files:
 
 The Power User TUI configuration is in `tui/menu_poweruser.sh`.
 
+### 6.9 iso-profiles Integration (`scripts/yaml.sh`, `scripts/iso-profiles.sh`, `scripts/stages/payload.sh`)
+
+ArtixForge consumes the upstream `iso-profiles` package at
+`/usr/share/artools/iso-profiles/` for two purposes:
+
+- **Quick Profiles** — `scripts/yaml.sh` provides a line-oriented parser
+  for the Artix profile YAML format (top-level keys, nested keys at
+  2/4/6-space indents, dash-lists, inline scalars, comments, quotes, and
+  `---`; fails silently on unrecognized constructs). `scripts/iso-profiles.sh`
+  uses it to discover profiles (`iso_profiles_list`), check staleness
+  against upstream `wip` (`iso_profiles_validate`, soft-fail), and union
+  the selected profile's package sets into `PROFILE_PACKAGES`
+  (`quick_profile_load`).
+- **Payload overlays** — `scripts/stages/payload.sh` applies
+  `root-overlay` trees from `common`, `common/community`, the profile's
+  GTK or Qt family overlay, and the selected profile itself to the target
+  between the `poweruser` and `chroot` stages. Overlays are copied with
+  `cp -rL` (symlinks dereferenced). Only `root-overlay` trees are applied
+  to the installed system; `live-overlay` belongs to the ISO build path
+  (§6.7).
+
+The same source of truth feeds the ISO builder, which extends upstream
+base profiles rather than generating its own.
+
 ---
 
 ## 7. Adding a Configuration Option
@@ -298,9 +356,15 @@ files:
    or subsystem library.
 4. **Handoff**: add the key to the config export in `handoff.sh` so it
    is written to `/mnt/etc/artix-installer.conf`.
-5. **Linting**: add validation to `lint_state` in `state.sh` if the key
+5. **Chroot visibility**: if the key must be readable inside the chroot
+   post stage (i.e. by anything under `scripts/post/`), add an
+   `export KEY="${value}"` line inside `stage_post`'s heredoc in
+   `scripts/stages/post.sh`. The post-stage scripts get state via
+   exported environment variables; the conf file is not sourced inside
+   the chroot.
+6. **Linting**: add validation to `lint_state` in `state.sh` if the key
    has constraints.
-6. **Recovery** (if applicable): add detection in `scripts/recovery/detects/`
+7. **Recovery** (if applicable): add detection in `scripts/recovery/detects/`
    and repair in `scripts/recovery/repairs/`.
 
 ---
@@ -320,6 +384,10 @@ files:
   GitHub and restart.
 - **Bug report generation**: `_generate_bug_report` collects logs, state,
   stage markers, and system info into a tarball on failure.
+- **ISO build script restoration**: `iso/build.sh` mutates `/usr/bin/buildiso`
+  and `/usr/share/artools/lib/iso/mount.sh` at build time and restores them
+  via an `EXIT` trap, so a hard failure mid-build cannot leave mutated
+  binaries in place.
 
 ---
 

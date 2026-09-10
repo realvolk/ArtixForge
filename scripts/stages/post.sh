@@ -4,7 +4,7 @@ set -Eeuo pipefail
 stage_post() {
     if stage_should_skip post; then return 0; fi
 
-    local init network_stack wm_de x_stack kernel_choice audio_stack extras fs_type user_name log_file rc=0
+    local init network_stack wm_de x_stack kernel_choice audio_stack extras fs_type user_name log_file rc=0 profile_packages
     init="$(state_get INIT)"
     network_stack="$(state_get NETWORK_STACK)"
     wm_de="$(state_get WM_DE)"
@@ -14,6 +14,7 @@ stage_post() {
     extras="$(state_get EXTRAS '')"
     fs_type="$(state_get FS_TYPE ext4)"
     user_name="$(state_get USER_NAME)"
+    profile_packages="$(state_get PROFILE_PACKAGES '')"
     log_file='/tmp/post-stage.log'
 
     log_info "Preparing installer environment..."
@@ -31,6 +32,7 @@ stage_post() {
     export SWAP_ENABLED="$(state_get SWAP_ENABLED none)"
     export SWAP_SIZE="$(state_get SWAP_SIZE 0)"
     export ZRAM_PERCENT="$(state_get ZRAM_PERCENT 50)"
+    export PROFILE_PACKAGES="${profile_packages}"
 
     if artix-chroot /mnt /bin/bash <<EOF
 set -Eeuo pipefail
@@ -44,6 +46,7 @@ export AUDIO_STACK="${audio_stack}"
 export EXTRAS="${extras}"
 export USER_NAME="${user_name}"
 export FS_TYPE="${fs_type}"
+export PROFILE_PACKAGES="${profile_packages}"
 export GUM_TITLE_COLOR="${GUM_TITLE_COLOR}"
 export GUM_ACCENT_COLOR="${GUM_ACCENT_COLOR}"
 export SWAP_ENABLED="${SWAP_ENABLED}"

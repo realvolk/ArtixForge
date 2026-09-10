@@ -110,6 +110,7 @@ DE_PACKAGES=(
     ["xfce"]="xfce4 xfce4-goodies"
     ["lxqt"]="lxqt"
     ["lxde"]="lxde-common lxde"
+    ["mate"]="mate mate-extra xdg-desktop-portal-gtk"
     ["hyprland"]="hyprland swaybg swaylock waybar"
     ["sway"]="sway swaybg swaylock waybar"
     ["niri"]="niri swaybg swaylock"
@@ -131,6 +132,7 @@ DE_DISPLAY_MANAGER=(
     ["xfce"]="lightdm"
     ["lxqt"]="sddm"
     ["lxde"]="lightdm"
+    ["mate"]="lightdm"
     ["hyprland"]="none"
     ["sway"]="none"
     ["niri"]="none"
@@ -239,6 +241,7 @@ _installed_de_packages() {
         xfce)     pattern='^(xfce4|xfce4-|xfdesktop|xfwm4|thunar|tumbler|ristretto|mousepad|orage)' ;;
         lxqt)     pattern='^(lxqt|lxqt-|pcmanfm-qt|qterminal|sddm)' ;;
         lxde)     pattern='^(lxde|lxde-|lxsession|pcmanfm)' ;;
+        mate)     pattern='^(mate|mate-|caja|pluma|engrampa|atril|marco|eom)' ;;
         hyprland) pattern='^(hyprland|hypr|xdg-desktop-portal-hyprland)' ;;
         sway)     pattern='^(sway|swaybg|swaylock|swayidle|wofi|waybar)' ;;
         niri)     pattern='^(niri|fuzzel)' ;;
@@ -708,11 +711,11 @@ tui_de_migration_menu() {
 
     local source_de target_de
     source_de=$(tui_menu "Source Desktop" "Select desktop to migrate FROM:" \
-        "kde" "sonicde" "xfce" "lxqt" "lxde" "hyprland" "sway" "niri" \
+        "kde" "sonicde" "xfce" "lxqt" "lxde" "mate" "hyprland" "sway" "niri" \
         "i3wm" "dwm" "vxwm" "icewm" "mango" "none") || return 1
 
     target_de=$(tui_menu "Target Desktop" "Select desktop to migrate TO:" \
-        "kde" "xfce" "lxqt" "lxde" "hyprland" "sway" "niri" \
+        "kde" "xfce" "lxqt" "lxde" "mate" "hyprland" "sway" "niri" \
         "i3wm" "dwm" "vxwm" "icewm" "mango" "none") || return 1
 
     [[ "$source_de" != "$target_de" ]] || die "Source and target are the same."

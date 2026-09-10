@@ -4,7 +4,7 @@ set -Eeuo pipefail
 tui_select_desktop() {
     local d
     d=$(tui_menu "Desktop Environment" "Select desktop:" \
-        "xfce4" "lxqt" "kde" "lxde" "mango" "hyprland" "niri" "sway" \
+        "xfce4" "lxqt" "kde" "lxde" "mate" "mango" "hyprland" "niri" "sway" \
         "i3wm" "dwm" "vxwm" "icewm" "cinnamon" "budgie" "moksha" "cosmic" "none") || return 1
     state_set WM_DE "${d}"
 

@@ -1,5 +1,49 @@
 # Changelog
 
+## v9.4.0.3 (2026-09-10) — ArtixForge
+
+### Added
+- **iso-profiles integration** — ArtixForge now consumes the upstream `iso-profiles` package to power Quick Profiles, apply per-DE overlay trees into the installed system, and extend upstream profiles for ISO builds
+  - `scripts/yaml.sh` — line-oriented YAML parser for the Artix profile format; supports top-level keys, nested keys, dash-lists, inline scalars, comments, quotes, and `---`; exposes `yaml_parse_list` and `yaml_parse_scalar`
+  - `scripts/iso-profiles.sh` — `iso_profiles_available`, `iso_profiles_list`, `iso_profiles_validate` (soft-fail staleness check against upstream `wip`), and `quick_profile_load` (unions `packages-base`, `packages-apps`, `packages-misc`, `packages-init.<init>`, `packages-xorg`/`packages-xlibre`, `rootfs.packages`, and `rootfs.packages-init.<init>` from `common`, `base`, and the selected profile into the new `PROFILE_PACKAGES` state key)
+  - `scripts/stages/payload.sh` — `stage_payload` applies `common/root-overlay`, `common/community/root-overlay`, `common/gtk/root-overlay` or `common/qt/root-overlay` (based on profile family), and `<profile>/root-overlay` in order; overlays are copied with `cp -rL` (symlinks dereferenced) and a marker is written to `/mnt/.artixforge-payload-<profile>`
+- **YAML-driven Quick Profiles** — `scripts/tui/menus/quick_profiles.sh` rewritten to offer upstream `iso-profiles` profiles when available, with the existing hardcoded presets retained as a fallback; both paths share a common finalize step (hostname, timezone, locale, keyboard, users, summary, customize)
+- **MATE support** — added across the install, migration, recovery, and ISO build paths:
+  - `scripts/post/desktop.sh` — `mate` entry in `_desktop_packages_for`
+  - `scripts/tui/menus/desktop.sh` — `mate` in the DE selection menu
+  - `scripts/tui/menus/quick_profiles.sh` — hardcoded MATE preset
+  - `migrations/des/common.sh` — `mate` in `DE_PACKAGES`, `DE_DISPLAY_MANAGER`, `_installed_de_packages`, and both `tui_de_migration_menu` lists
+  - `recovery/detects/desktop.sh` — `[mate]=mate` in `de_map`
+  - `iso/common.sh` — `mate` entry in `generate_offline_package_list`
+- **`PROFILE_PACKAGES` state key** — new key holding the space-separated package list loaded from the selected profile's YAML; appended to the DE package set in `scripts/post/desktop.sh` before dedup and install; propagated across the chroot boundary via `export` in `scripts/stages/post.sh`
+
+### Changed
+- **`install`** — sources `scripts/yaml.sh` and `scripts/iso-profiles.sh`; `run_install_pipeline` now runs `stage_payload` between `stage_poweruser` and `stage_chroot`; `main` calls `iso_profiles_validate || true` after the `gum`/`jq` dependency checks
+- **`scripts/state.sh`** — `stage_validate` gains a `payload` case that checks for the per-profile marker; `stage_reset_from` includes `payload` in the ordered reset list between `poweruser` and `chroot`
+- **`scripts/stages/post.sh`** — `stage_post` exports `PROFILE_PACKAGES` across the chroot boundary so `install_desktop` can append the profile package list; previously the value was only present on the host side
+- **`PKGBUILD`** — `iso-profiles` added to `depends`
+- **`iso/` rewritten to extend upstream `iso-profiles` profiles** rather than generating its own:
+  - `iso/common.sh` — `generate_common_yaml` removed; upstream `common/common.yaml` is now used as-is; `generate_iso_package_list` renamed to `generate_offline_package_list` and repurposed as the offline bundle download list; `generate_artools_profile` now copies an upstream base profile and layers ArtixForge additions (`profile-artixforge.yaml`, `live-overlay/` installer auto-boot hooks, `airootfs/root/ArtixForge/`, `packages-offline.x86_64`); new `iso_profile_for_de` helper maps `WM_DE` to an upstream profile name
+  - `iso/build.sh` — no longer copies the generated profile into `/usr/share/artools/iso-profiles/`, eliminating the shadowing vector against upstream profile directories; `.orig` mutations of `/usr/bin/buildiso` and `/usr/share/artools/lib/iso/mount.sh` are now restored via an `EXIT` trap so a hard failure cannot leave the mutated binaries in place; `build_artix_iso` accepts a base profile as a seventh argument
+  - `iso/tui.sh` — `tui_iso_live_config` prompts for an upstream base profile via `iso_profiles_list` and stores it in `ISO_BASE_PROFILE`; `start_iso_build` passes the base profile through to `build_artix_iso`
+  - `iso/README.md` — rewritten to describe the upstream-extension model
+
+### Fixed
+- **MATE missing from migration and recovery detection** — `detect_desktop` previously fell through to `none` on systems with MATE installed; migrating away from MATE would also have left its packages orphaned due to a missing pattern in `_installed_de_packages`
+- **ISO `common.yaml` syntax error** — the generated `packages-xorg` list contained `xf86-input-wacom  - xf86-video-amdgpu` on a single line, merging two package entries; moot now that `generate_common_yaml` is gone, but upstream's `common.yaml` is used unmodified as a result
+- **ISO build script mutations were not idempotent** — a hard failure mid-build left the mutated `buildiso` and `mount.sh` in place until the next successful run's cleanup; now restored on any exit
+
+### Removed
+- **`iso/common.sh:generate_common_yaml`** — parallel `common/common.yaml` generator that drifted from upstream and could shadow it
+
+### Notes
+- Overlays apply **between `base`/`poweruser` and `chroot`** so overlay-provided `/etc/skel` and `/etc/default/grub` take effect before user creation and bootloader configuration
+- `stage_payload` applies only `root-overlay` trees to the installed system. The ISO build path (`iso/common.sh`) additionally writes installer-only auto-boot hooks into `live-overlay/` when building an installer ISO; `buildiso` consumes that tree when assembling the live squashfs.
+- No `@initsys@` substitution: upstream YAML already splits `packages-init.<init>` per init
+- YAML parsing is runtime-only; no materialization step in `PKGBUILD`
+- Migrations are overlay-unaware by design — `PROFILE_PACKAGES` and `QUICK_PROFILE` are install-time only
+- `iso/` and the install-time `iso-profiles.sh` now share the same source of truth; a base profile selected for an ISO build is extended in the artools workspace and never written back to `/usr/share/artools/iso-profiles/`
+
 ## v9.4.0.2 (2026-09-10) — ArtixForge
 
 ### Fixed

@@ -7,7 +7,7 @@ pkgdesc="Modular TUI installer framework for Artix Linux"
 arch=('any')
 url="https://github.com/realvolk/ArtixForge"
 license=('custom:IRX License 1.0')
-depends=('bash' 'gum' 'git' 'curl' 'openssl' 'rsync' 'coreutils')
+depends=('bash' 'gum' 'git' 'curl' 'openssl' 'rsync' 'coreutils' 'iso-profiles')
 optdepends=(
     'pacman-contrib: mirror ranking support'
     'artools: ISO build support'
