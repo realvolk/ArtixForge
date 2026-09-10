@@ -36,6 +36,9 @@ tui_select_xstack() {
         state_set X_STACK "none"
         return 0
     fi
-    stack=$(tui_menu "Display Stack" "Select display stack:" "X.Org") || return 1
-    state_set X_STACK "xorg"
+    stack=$(tui_menu "Display Stack" "Select display stack:" "X.Org" "None") || return 1
+    case "${stack}" in
+        "X.Org") state_set X_STACK "xorg" ;;
+        *)       state_set X_STACK "none" ;;
+    esac
 }

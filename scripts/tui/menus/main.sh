@@ -174,4 +174,5 @@ tui_collect_install_config() {
     tui_select_keyboard_layout
     tui_configure_users
     tui_show_sanity_warnings
+    tui_show_summary
 }

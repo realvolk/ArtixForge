@@ -151,7 +151,7 @@ tui_quick_install() {
             state_set USER_SHELL "bash"
             state_set EXTRAS "git firefox alacritty fzf zoxide starship eza btop tmux"
             ;;
-        *Community GTK*)
+        *"Community GTK"*)
             state_set QUICK_PROFILE "Community GTK"
             local cgtk_init
             cgtk_init=$(tui_menu "Community GTK Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
@@ -177,7 +177,7 @@ tui_quick_install() {
             state_set USER_SHELL "bash"
             state_set EXTRAS "git firefox thunderbird libreoffice gimp inkscape vlc alacritty fzf zoxide starship eza btop tmux flatpak"
             ;;
-        *Community Qt*)
+        *"Community Qt"*)
             state_set QUICK_PROFILE "Community Qt"
             local cqt_init
             cqt_init=$(tui_menu "Community Qt Init" "Select init system:" "dinit" "openrc" "runit" "s6") || return 1
@@ -288,9 +288,7 @@ tui_quick_install() {
     tui_select_timezone
     tui_select_locale
     tui_select_keyboard_layout
-    tui_select_username
-    tui_select_user_password
-    tui_select_root_password
+    tui_configure_users
 
     local summary=""
     summary+="Profile: ${profile}"$'\n\n'
