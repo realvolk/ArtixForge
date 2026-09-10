@@ -53,7 +53,7 @@ resolve_deps() {
 
         for next in ${edges["${current}"]}; do
             in_degree["${next}"]=$((in_degree["${next}"] - 1))
-            [[ "${in_degree["${next}"]}" -eq 0 ]] && queue+=("${next}")
+            [[ "${in_degree[${next}]}" -eq 0 ]] && queue+=("${next}")
         done
     done
 

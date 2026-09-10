@@ -74,15 +74,15 @@ install_drivers() {
             pacman -Si linux-cachyos-headers >/dev/null 2>&1 && pkgs+=(linux-cachyos-headers) ;;
         linux-bazzite-bin|bazzite) initramfs_tool='dracut' ;;
         xanmod)
-            local cpu_level kernel_headers
-            cpu_level=$(/lib/ld-linux-x86-64.so.2 --help 2>/dev/null | grep -oE 'x86-64-v[2-4]' | head -n1)
-            case "${cpu_level}" in
-                x86-64-v4) kernel_headers='linux-xanmod-x64v4-headers' ;;
-                x86-64-v3) kernel_headers='linux-xanmod-x64v3-headers' ;;
-                x86-64-v2) kernel_headers='linux-xanmod-x64v2-headers' ;;
-                *)         kernel_headers='linux-xanmod-headers' ;;
-            esac
-            pkgs+=("${kernel_headers}") ;;
+            local installed_kernel kernel_headers
+            installed_kernel=$(pacman -Q | grep -oP 'linux-xanmod-x64v[2-4]' | head -n1)
+            if [[ -n "${installed_kernel}" ]]; then
+                kernel_headers="${installed_kernel}-headers"
+            else
+                kernel_headers="linux-xanmod-headers"
+            fi
+            pkgs+=("${kernel_headers}")
+            ;;
         tkg) ;;
     esac
 

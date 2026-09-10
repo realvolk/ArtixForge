@@ -8,6 +8,7 @@ detect_kernel_package() {
     KERNEL_HEADERS='';
     KERNEL_AUR='false';
 
+    # ARM64 kernels from ARMtix
     case "${kernel}" in
         linux-aarch64)
             KERNEL_PACKAGE='linux-aarch64';

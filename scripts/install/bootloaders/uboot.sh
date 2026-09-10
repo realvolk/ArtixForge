@@ -2,85 +2,49 @@
 set -Eeuo pipefail
 
 bootloader_install_uboot() {
-    log_info "Installing U-Boot..."
-    
-    local board_name uboat_target
-    board_name="$(state_get BOARD_NAME '')"
-    uboat_target="$(state_get UBOOT_TARGET '')"
-    
-    if [[ -z "${board_name}" ]]; then
-        die "No board selected for U-Boot installation"
-    fi
-    
-    log_info "Board: ${board_name}"
-    
-    local kernel_choice kernel_image initramfs_image
-    kernel_choice="$(state_get KERNEL_CHOICE linux-aarch64)"
-    kernel_image=$(find_kernel_image "${kernel_choice}" "/mnt/boot")
-    [[ -n "${kernel_image}" ]] || die "No kernel image found for U-Boot"
-    
-    initramfs_image=$(find_initramfs_image "${kernel_choice#linux-}" "/mnt/boot")
-    [[ -n "${initramfs_image}" ]] || die "No initramfs image found for U-Boot"
-    
-    local boot_part="/mnt/boot"
-    mkdir -p "${boot_part}"
-    
-    log_info "Copying kernel and initramfs to boot partition..."
-    cp "${kernel_image}" "${boot_part}/"
-    cp "${initramfs_image}" "${boot_part}/"
-    
-    local kernel_name initramfs_name
-    kernel_name=$(basename "${kernel_image}")
-    initramfs_name=$(basename "${initramfs_image}")
-    
-    local device_tree=""
-    if [[ -n "$(state_get BOARD_DEVICE_TREE '')" ]]; then
-        device_tree="$(state_get BOARD_DEVICE_TREE)"
-        if [[ -f "/mnt/usr/lib/linux-${kernel_choice#linux-}/dtbs/${device_tree}" ]]; then
-            cp "/mnt/usr/lib/linux-${kernel_choice#linux-}/dtbs/${device_tree}" "${boot_part}/"
-            device_tree=$(basename "${device_tree}")
-            log_info "Device tree copied: ${device_tree}"
-        else
-            log_warn "Device tree not found: ${device_tree}"
-            device_tree=""
-        fi
-    fi
-    
-    local root_uuid
-    root_uuid=$(blkid -s UUID -o value "$(findmnt -no SOURCE /mnt)")
-    [[ -n "${root_uuid}" ]] || root_uuid=""
-    
-    local boot_cmd="root=UUID=${root_uuid} rw"
-    if [[ "$(state_get USE_LUKS no)" == "yes" ]]; then
-        boot_cmd="cryptdevice=UUID=${root_uuid}:cryptroot root=/dev/mapper/cryptroot rw"
-    fi
-    
-    log_info "Generating boot.scr..."
-    local boot_cmd_file="/tmp/boot.cmd.$$"
-    cat > "${boot_cmd_file}" <<BOOTCMD
-setenv bootargs '${boot_cmd}'
-load mmc 0:1 \${kernel_addr_r} ${kernel_name}
-load mmc 0:1 \${ramdisk_addr_r} ${initramfs_name}
-BOOTCMD
+    local board="${BOARD_NAME:-unknown}"
+    local kernel_image initramfs_image dtb_file
 
-    if [[ -n "${device_tree}" ]]; then
-        cat >> "${boot_cmd_file}" <<BOOTCMD
-load mmc 0:1 \${fdt_addr_r} ${device_tree}
-booti \${kernel_addr_r} \${ramdisk_addr_r} \${fdt_addr_r}
-BOOTCMD
-    else
-        cat >> "${boot_cmd_file}" <<BOOTCMD
-booti \${kernel_addr_r} \${ramdisk_addr_r}
-BOOTCMD
+    log_info "Installing U-Boot for ${board}..."
+
+    if ! command -v mkimage >/dev/null 2>&1; then
+        die "mkimage not found – install uboot-tools"
     fi
-    
-    mkimage -T script -C none -n "ArtixForge boot script" -d "${boot_cmd_file}" "${boot_part}/boot.scr" || {
-        log_error "Failed to generate boot.scr with mkimage"
-        rm -f "${boot_cmd_file}"
-        return 1
-    }
-    rm -f "${boot_cmd_file}"
-    
-    log_info "U-Boot boot script written to ${boot_part}/boot.scr"
-    log_info "U-Boot installation complete."
+
+    kernel_image=$(find_kernel_image "${KERNEL_CHOICE:-linux}")
+    [[ -n "${kernel_image}" ]] || die "No kernel image found"
+    local kver
+    kver=$(basename "${kernel_image}" | sed 's/^vmlinuz-//')
+    initramfs_image=$(find_initramfs_image "${kver}")
+    [[ -n "${initramfs_image}" ]] || die "No initramfs image found"
+
+    dtb_file=$(find /mnt/boot -name "${BOARD_DEVICE_TREE:-*.dtb}" 2>/dev/null | head -n1)
+    if [[ -z "${dtb_file}" ]]; then
+        log_warn "Device tree ${BOARD_DEVICE_TREE} not found – boot may fail"
+    fi
+
+    local boot_script="/tmp/boot.cmd"
+    local boot_scr="/tmp/boot.scr"
+    cat > "${boot_script}" <<EOF
+# U-Boot boot script for ${board}
+setenv bootargs console=ttyAMA0,115200 console=tty1 root=/dev/mmcblk0p2 rootfstype=ext4 rootwait rw
+
+load mmc 0:1 \${kernel_addr_r} $(basename "${kernel_image}")
+load mmc 0:1 \${fdt_addr_r} $(basename "${dtb_file}")
+load mmc 0:1 \${ramdisk_addr_r} $(basename "${initramfs_image}")
+
+booti \${kernel_addr_r} \${ramdisk_addr_r} \${fdt_addr_r}
+EOF
+
+    mkimage -A arm64 -O linux -T script -C none -d "${boot_script}" "${boot_scr}" || die "Failed to create boot.scr"
+
+    local boot_mount="/mnt/boot"
+    cp "${kernel_image}" "${boot_mount}/"
+    cp "${initramfs_image}" "${boot_mount}/"
+    [[ -f "${dtb_file}" ]] && cp "${dtb_file}" "${boot_mount}/"
+    cp "${boot_scr}" "${boot_mount}/boot.scr"
+
+    log_info "U-Boot boot script installed to ${boot_mount}/boot.scr"
+    log_info "U-Boot binary must be written to the SD card at the correct offset for ${board}"
+    log_info "Example: dd if=u-boot.bin of=/dev/mmcblk0 seek=64 conv=fsync"
 }

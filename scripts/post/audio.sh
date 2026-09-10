@@ -37,5 +37,7 @@ setup_audio() {
     fi
 
     log_info "Installing audio packages..."
-    pacman -S --noconfirm --needed "${to_install[@]}" || { log_warn "Failed to install audio packages."; return 1; }
+    if ! retry_command "audio install" pacman -S --noconfirm --needed "${to_install[@]}"; then
+        log_warn "Failed to install ${audio_stack} packages. Audio may not work. Install manually after boot."
+    fi
 }

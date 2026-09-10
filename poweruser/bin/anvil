@@ -29,8 +29,6 @@ Commands:
   list-recipes      List all available recipes
   info <pkg>        Show build details
   rebuild <pkg>     Rebuild a specific package
-  rebuild --target aarch64 <pkg>  Cross-compile for another architecture
-  rebuild --isolated <pkg>        Rebuild in a clean chroot
   new <name>        Create a new recipe from template
   edit <name>       Edit an existing recipe
   config            Edit the running kernel's .config

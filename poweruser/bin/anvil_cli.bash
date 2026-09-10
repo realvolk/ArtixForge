@@ -242,15 +242,23 @@ _anvil_diff_recipe() {
     local name="${1}" old_file="${2}" new_file="${3}"
 
     if [[ ! -f "${old_file}" ]]; then
-        tui_msg "New Recipe: ${name}" "This is a new recipe. No diff available."
+        _filly_send '{"widget":"msg","params":{"title":"New Recipe: '"${name}"'","message":"This is a new recipe. No diff available."}}' >/dev/null
         return 0
     fi
 
     local old_content new_content
-    old_content=$(cat "${old_file}")
-    new_content=$(cat "${new_file}")
+    old_content=$(cat "${old_file}" | sed 's/"/\\"/g' | tr '\n' ' ')
+    new_content=$(cat "${new_file}" | sed 's/"/\\"/g' | tr '\n' ' ')
 
-    tui_msg "Diff: ${name}" "Old version:\n${old_content}\n\nNew version:\n${new_content}"
+    local left_widget right_widget
+    left_widget=$(printf '{"widget":"msg","params":{"title":"Old: %s","message":"%s"}}' "${name}" "${old_content}")
+    right_widget=$(printf '{"widget":"msg","params":{"title":"New: %s","message":"%s"}}' "${name}" "${new_content}")
+
+    local diff_json
+    diff_json=$(printf '{"widget":"split_panes","params":{"orientation":"horizontal","first":%s,"second":%s}}' \
+        "${left_widget}" "${right_widget}")
+
+    "${FILLY_BIN}" oneshot --input <(printf '%s\n' "${diff_json}") 2>/dev/null >/dev/null
 }
 
 upgrade_anvil() {
@@ -340,7 +348,7 @@ upgrade_anvil() {
                 local new_file="${recipe_dir}/${name}"
 
                 if [[ ${is_new} -eq 1 ]]; then
-                    tui_msg "New Recipe: ${name}" "This recipe was added in this update."
+                    _filly_send '{"widget":"msg","params":{"title":"New Recipe: '"${name}"'","message":"This recipe was added in this update."}}' >/dev/null
                 elif [[ -f "${old_file}" && -f "${new_file}" ]]; then
                     _anvil_diff_recipe "${name}" "${old_file}" "${new_file}"
                 fi
@@ -414,7 +422,7 @@ anvil_files() {
     entry=$(grep "^${pkg}|" "${POWERUSER_DIR}/db/local.db" 2>/dev/null | tail -n1)
     [[ -n "${entry}" ]] || { echo "Package ${pkg} not found in database."; return 1; }
     local files
-    files=$(echo "${entry}" | cut -d'|' -f7)
+    files=$(echo "${entry}" | cut -d'|' -f6)
     printf '%s\n' "${files}" | tr ',' '\n'
 }
 
@@ -426,7 +434,7 @@ anvil_verify() {
     entry=$(grep "^${pkg}|" "${POWERUSER_DIR}/db/local.db" 2>/dev/null | tail -n1)
     [[ -n "${entry}" ]] || { echo "Package ${pkg} not found in database."; return 1; }
     local files
-    files=$(echo "${entry}" | cut -d'|' -f7)
+    files=$(echo "${entry}" | cut -d'|' -f6)
     local missing=0 total=0
     local f
     while IFS=',' read -ra file_array; do
@@ -451,7 +459,7 @@ anvil_remove() {
     entry=$(grep "^${pkg}|" "${POWERUSER_DIR}/db/local.db" 2>/dev/null | tail -n1)
     [[ -n "${entry}" ]] || { echo "Package ${pkg} not found in database."; return 1; }
     local files
-    files=$(echo "${entry}" | cut -d'|' -f7)
+    files=$(echo "${entry}" | cut -d'|' -f6)
     local count=0
     local f
     while IFS=',' read -ra file_array; do
@@ -613,7 +621,7 @@ anvil_build_interactive() {
     done <<< "${configure_help}"
 
     local selected
-    selected=$(tui_checklist "Configure Options: ${pkg}" "Select features to enable" "${options[@]}") || true
+    selected=$(_filly_result '{"widget":"checklist","params":{"title":"Configure Options: '"${pkg}"'","message":"Select features to enable","choices":'"$(printf '%s\n' "${options[@]}" | jq -R . | jq -s .)"'}}')
 
     local flag_file="${POWERUSER_DIR}/package.use/${pkg}"
     mkdir -p "$(dirname "${flag_file}")"
@@ -664,7 +672,8 @@ anvil_shell() {
         fi
         if declare -f package >/dev/null 2>&1; then
             (cd "${pkg_work}" && package)
-        fi        log_info "Build complete. Artifact not cached (manual build)."
+        fi
+        log_info "Build complete. Artifact not cached (manual build)."
     else
         log_info "Shell exited. Work directory preserved at ${pkg_work}"
     fi
@@ -883,7 +892,7 @@ anvil_audit() {
         [[ -n "${entry}" ]] || { echo "Package ${pkg} not found."; return 1; }
         echo "Auditing ${pkg}..."
         local files
-        files=$(echo "${entry}" | cut -d'|' -f7)
+        files=$(echo "${entry}" | cut -d'|' -f6)
         local f
         while IFS=',' read -ra file_array; do
             for f in "${file_array[@]}"; do
@@ -964,7 +973,7 @@ anvil_world() {
                 if [[ -n "${entry}" ]]; then
                     local ver flags
                     ver=$(echo "${entry}" | cut -d'|' -f2)
-                    flags=$(echo "${entry}" | cut -d'|' -f6)
+                    flags=$(echo "${entry}" | cut -d'|' -f5)
                     echo "  ${pkg} ${ver} [${flags:-no flags}]"
                 else
                     echo "  ${pkg} (not built)"

@@ -371,25 +371,29 @@ state_set() {
 }
 
 stage_mark_done() {
-    ensure_state_dirs
-    touch "${STAGE_DIR}/${1}.done"
+    ensure_state_dirs;
+
+    touch "${STAGE_DIR}/${1}.done";
 }
 
 stage_is_done() {
-    [[ -f "${STAGE_DIR}/${1}.done" ]]
+    [[ -f "${STAGE_DIR}/${1}.done" ]];
 }
 
 stage_reset() {
-    rm -f "${STAGE_DIR}/${1}.done"
+    rm -f "${STAGE_DIR}/${1}.done";
 }
 
 stage_reset_all() {
-    rm -f "${STAGE_DIR}"/*.done
+    rm -f "${STAGE_DIR}"/*.done;
 }
 
 stage_log_path() {
-    ensure_state_dirs
-    printf '%s/%s.log\n' "${LOG_DIR}" "${1}"
+    ensure_state_dirs;
+
+    printf '%s/%s.log\n' \
+        "${LOG_DIR}" \
+        "${1}";
 }
 
 stage_require_mount() {
@@ -419,7 +423,8 @@ stage_require_post() {
 }
 
 stage_validate() {
-    local stage="${1}"
+    local stage="${1}";
+
     case "${stage}" in
         preflight)  return 0 ;;
         storage)    [[ -b "$(state_get DISK)" ]] ;;
@@ -434,30 +439,50 @@ stage_validate() {
 }
 
 stage_reset_from() {
-    local stage="${1}"
-    local reset='false'
-    local current
-    for current in preflight storage base poweruser chroot init post finalize; do
+    local stage="${1}";
+    local reset='false';
+    local current;
+
+    for current in \
+        preflight \
+        storage \
+        base \
+        poweruser \
+        chroot \
+        init \
+        post \
+        finalize; do
+
         if [[ "${current}" == "${stage}" ]]; then
-            reset='true'
+            reset='true';
         fi
+
         if [[ "${reset}" == 'true' ]]; then
-            stage_reset "${current}"
+            stage_reset "${current}";
         fi
     done
 }
 
 stage_should_skip() {
-    local stage="${1}"
+    local stage="${1}";
+
     if ! stage_is_done "${stage}"; then
-        return 1
+        return 1;
     fi
+
     if ! stage_validate "${stage}"; then
-        printf '[!] Stage "%s" marked complete but environment is invalid.\n' "${stage}"
-        printf '[!] Resetting stage state...\n'
-        stage_reset_from "${stage}"
-        return 1
+        printf '[!] Stage "%s" marked complete but environment is invalid.\n' \
+            "${stage}";
+
+        printf '[!] Resetting stage state...\n';
+
+        stage_reset_from "${stage}";
+
+        return 1;
     fi
-    printf '[*] %s stage already completed. Skipping...\n' "${stage^}"
-    return 0
+
+    printf '[*] %s stage already completed. Skipping...\n' \
+        "${stage^}";
+
+    return 0;
 }

@@ -229,14 +229,6 @@ configure_bootloader() {
         return 0
     fi
 
-    if [[ "${bootloader}" == "uboot" ]]; then
-        log_info "Configuring U-Boot..."
-        export fs_type crypt_uuid mapper_name root_uuid root_param root_device
-        bootloader_install_uboot
-        log_info "Bootloader setup complete (U-Boot)."
-        return 0
-    fi
-
     for esp_mount in /mnt/boot/efi /mnt/efi /mnt/boot; do
         if findmnt -rn -o FSTYPE "${esp_mount}" | grep -qx 'vfat'; then
             esp_source="$(findmnt -rn -o SOURCE "${esp_mount}")"
@@ -283,6 +275,7 @@ configure_bootloader() {
         refind)  bootloader_install_refind ;;
         efistub) bootloader_install_efistub ;;
         limine)  bootloader_install_limine ;;
+        uboot)   bootloader_install_uboot ;;
         *)       die "unsupported bootloader: ${bootloader}" ;;
     esac
 

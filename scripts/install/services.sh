@@ -5,12 +5,12 @@ set -Eeuo pipefail
 service_exists() {
     local svc="${1}" init="${INIT:-openrc}"
     case "${init}" in
-        openrc) [[ -f "/etc/init.d/${svc}" ]] ;;
-        runit)  [[ -d "/etc/runit/sv/${svc}" ]] ;;
-        dinit)  [[ -f "/etc/dinit.d/${svc}" ]] ;;
-        s6)     [[ -d "/etc/s6/sv/${svc}" ]] ;;
-        *)      return 1 ;;
+        openrc) [[ -f "/etc/init.d/${svc}" ]] && return 0 ;;
+        runit)  [[ -d "/etc/runit/sv/${svc}" ]] && return 0 ;;
+        dinit)  [[ -f "/etc/dinit.d/${svc}" ]] && return 0 ;;
+        s6)     [[ -d "/etc/s6/sv/${svc}" ]] && return 0 ;;
     esac
+    return 1
 }
 
 enable_service() {
@@ -22,14 +22,14 @@ enable_service() {
     esac
     
     if ! service_exists "${svc}"; then
-        warn_collect "Service not found for ${init}: ${svc}"
-        return 1
+        warn_collect "Service '${svc}' not found for ${init} — enable manually after install"
+        return 0
     fi
     case "${init}" in
         openrc) rc-update add "${svc}" default ;;
         runit)  mkdir -p /etc/runit/runsvdir/default ; ln -sf "/etc/runit/sv/${svc}" "/etc/runit/runsvdir/default/${svc}" ;;
         dinit)  mkdir -p /etc/dinit.d/boot.d ; ln -sf "../${svc}" "/etc/dinit.d/boot.d/${svc}" ;;
-        s6)     s6-rc-bundle-update add default "${svc}" 2>/dev/null || warn_collect "Failed to enable ${svc} for s6" ;;
+        s6)     s6-rc-bundle-update add default "${svc}" 2>/dev/null || true ;;
     esac
 }
 
@@ -41,22 +41,23 @@ enable_service_boot() {
     esac
     
     if ! service_exists "${svc}"; then
-        warn_collect "Service not found for ${init}: ${svc}"
-        return 1
+        log_warn "Boot service '${svc}' not found for ${init} — skipping. It may need to be enabled manually after install."
+        MISSING_SERVICES="${MISSING_SERVICES}  - ${svc} (${init}) [boot]\n"
+        return 0
     fi
     case "${init}" in
         openrc) rc-update add "${svc}" boot ;;
         runit)  mkdir -p /etc/runit/runsvdir/boot ; ln -sf "/etc/runit/sv/${svc}" "/etc/runit/runsvdir/boot/${svc}" ;;
         dinit)  mkdir -p /etc/dinit.d/boot.d ; ln -sf "../${svc}" "/etc/dinit.d/boot.d/${svc}" ;;
-        s6)     s6-rc-bundle-update add boot "${svc}" 2>/dev/null || warn_collect "Failed to enable ${svc} for s6 boot" ;;
+        s6)     s6-rc-bundle-update add boot "${svc}" 2>/dev/null || true ;;
     esac
 }
 
 start_service() {
     local svc="${1}" init="${INIT:-openrc}"
     if ! service_exists "${svc}"; then
-        warn_collect "Service not found for ${init}: ${svc}"
-        return 1
+        log_warn "Cannot start '${svc}' — not found for ${init}."
+        return 0
     fi
     case "${init}" in
         openrc) rc-service "${svc}" start || true ;;

@@ -19,7 +19,6 @@ log_info() {
 log_warn() {
     _ensure_log_dirs
     printf '\e[1;33m[!] %s\e[0m\n' "$*" | tee -a "${LOG_FILE}" >&2
-    [[ -d /mnt ]] && printf '[!] %s\n' "$*" >> "${CHROOT_LOG}" 2>/dev/null || true
 }
 
 warn_collect() {
