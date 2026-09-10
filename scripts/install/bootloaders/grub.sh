@@ -22,10 +22,25 @@ bootloader_install_grub() {
     local -a grub_extra_args=()
     grub_extra_args+=( --removable )
 
+    local -a grub_modules=( part_gpt part_msdos fat ext2 )
+    local -a grub_preload=()
+
     if [[ "$(state_get USE_LVM no)" == "yes" ]]; then
-        echo 'GRUB_PRELOAD_MODULES="lvm dm"' >> /mnt/etc/default/grub
+        grub_modules+=( lvm )
+        grub_preload+=( lvm )
+    fi
+    if [[ "$(state_get USE_LUKS no)" == "yes" ]]; then
+        grub_modules+=( cryptodisk luks )
+        grub_preload+=( cryptodisk luks )
+    fi
+
+    if [[ ${#grub_modules[@]} -gt 4 ]]; then
         grub_extra_args+=( --modules )
-        grub_extra_args+=( "part_gpt part_msdos fat lvm dm ext2" )
+        grub_extra_args+=( "${grub_modules[*]}" )
+    fi
+
+    if [[ ${#grub_preload[@]} -gt 0 ]]; then
+        echo "GRUB_PRELOAD_MODULES=\"${grub_preload[*]}\"" >> /mnt/etc/default/grub
     fi
 
     xtrace_safe artix-chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ARTIX "${grub_extra_args[@]}" || recoverable_error 'grub-install failed – updating ArtixForge may help'
