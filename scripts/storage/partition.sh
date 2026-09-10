@@ -79,14 +79,16 @@ partition_disk() {
 
     if [[ "$(state_get USE_LVM no)" == "yes" ]]; then
         log_info "Setting up LVM..."
-        local root_part
+        local root_part root_part_num
         if [[ "${use_swap_partition}" == "yes" ]]; then
             root_part=$(get_partition_name "${disk}" 3)
+            root_part_num=3
         else
             root_part=$(get_partition_name "${disk}" 2)
+            root_part_num=2
         fi
 
-        sgdisk -t "$(lsblk -no PARTN "${root_part}" | head -n1)":8e00 "${disk}"
+        sgdisk -t "${root_part_num}:8e00" "${disk}"
         partprobe "${disk}" 2>/dev/null || true
         udevadm settle
 

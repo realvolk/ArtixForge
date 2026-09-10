@@ -1,5 +1,10 @@
 # Changelog
 
+## v9.4.0.2 (2026-09-10) — ArtixForge
+
+### Fixed
+- **LVM partition type code assignment** — `partition.sh` now sets the GPT type code to `8e00` (Linux LVM) using the known partition number instead of querying `lsblk -no PARTN`; the previous command produced `Could not change partition N's type code to !` when `lsblk` returned an empty or non-numeric value, silently failing the type code change
+
 ## v9.4.0.1 (2026-09-10) — ArtixForge
 
 ### Fixed
