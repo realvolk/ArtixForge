@@ -2,50 +2,29 @@
 set -Eeuo pipefail
 
 tui_show_summary() {
-    local summary
-    printf -v summary \
-"$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Disk:')       %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Hostname:')   %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Timezone:')   %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Locale:')     %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Keyboard:')   %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Microcode:')  %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'BTRFS:')      %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Filesystem:') %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'LVM:')        %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Init:')       %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Bootloader:') %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'UKI:')        %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Kernel:')     %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Priv Esc:')   %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Power User:') %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Desktop:')    %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Network:')    %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'X Stack:')    %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'LUKS:')       %s
-$(gum style --bold --foreground "${GUM_TITLE_COLOR}" 'Arch Repos:') %s" \
-        "$(state_get DISK)" \
-        "$(state_get HOSTNAME artix)" \
-        "$(state_get TIMEZONE Europe/Belgrade)" \
-        "$(state_get LOCALE en_US.UTF-8)" \
-        "$(state_get KEYMAP us)" \
-        "$(state_get MICROCODE_OVERRIDE auto)" \
-        "$(state_get BTRFS_LAYOUT standard)" \
-        "$(state_get FS_TYPE ext4)" \
-        "$(state_get USE_LVM no)" \
-        "$(state_get INIT openrc)" \
-        "$(state_get BOOTLOADER grub)" \
-        "$(state_get GENERATE_UKI no)" \
-        "$(state_get KERNEL_CHOICE linux)" \
-        "$(state_get PRIV_ESCALATION sudo)" \
-        "$(state_get POWER_USER no)" \
-        "$(state_get WM_DE none)" \
-        "$(state_get NETWORK_STACK dhcpcd+iwd)" \
-        "$(state_get X_STACK xorg)" \
-        "$(state_get USE_LUKS no)" \
-        "$(state_get ENABLE_ARCH_REPOS no)"
+    local title_color="${GUM_TITLE_COLOR:-212}"
 
-    gum style --border rounded --padding 1 --bold --foreground "${GUM_TITLE_COLOR}" "Installation Summary"
-    gum format "${summary}"
+    gum style --border rounded --padding 1 --bold --foreground "${title_color}" "Installation Summary"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Disk:')"       "$(state_get DISK)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Hostname:')"   "$(state_get HOSTNAME artix)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Timezone:')"   "$(state_get TIMEZONE Europe/Belgrade)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Locale:')"     "$(state_get LOCALE en_US.UTF-8)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Keyboard:')"   "$(state_get KEYMAP us)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Microcode:')"  "$(state_get MICROCODE_OVERRIDE auto)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'BTRFS:')"      "$(state_get BTRFS_LAYOUT standard)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Filesystem:')" "$(state_get FS_TYPE ext4)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'LVM:')"        "$(state_get USE_LVM no)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Init:')"       "$(state_get INIT openrc)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Bootloader:')" "$(state_get BOOTLOADER grub)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'UKI:')"        "$(state_get GENERATE_UKI no)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Kernel:')"     "$(state_get KERNEL_CHOICE linux)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Priv Esc:')"   "$(state_get PRIV_ESCALATION sudo)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Power User:')" "$(state_get POWER_USER no)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Desktop:')"    "$(state_get WM_DE none)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Network:')"    "$(state_get NETWORK_STACK dhcpcd+iwd)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'X Stack:')"    "$(state_get X_STACK xorg)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'LUKS:')"       "$(state_get USE_LUKS no)"
+    printf '%s %s\n' "$(gum style --bold --foreground "${title_color}" 'Arch Repos:')" "$(state_get ENABLE_ARCH_REPOS no)"
+
     gum confirm "Proceed with installation?" || exit 0
 }
