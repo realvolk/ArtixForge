@@ -62,5 +62,8 @@ stage_payload() {
     _payload_filter_caches
 
     install -Dm644 /dev/null "/mnt/.artixforge-payload-${profile}"
+    log_info "Synchronizing target package databases after overlay..."
+    artix-chroot /mnt pacman -Sy --noconfirm || log_warn "Failed to sync target databases after overlay"
+
     stage_mark_done payload
 }
