@@ -158,9 +158,25 @@ install_desktop() {
     esac
 
     if [[ -n "$(state_get PROFILE_PACKAGES '')" ]]; then
-        local -a profile_pkgs
+        local -a profile_pkgs filtered_pkgs=()
         read -ra profile_pkgs <<< "$(state_get PROFILE_PACKAGES '')"
-        all_pkgs+=("${profile_pkgs[@]}")
+        local p
+        local x_variant
+        x_variant="$(state_get X_STACK xorg)"
+        for p in "${profile_pkgs[@]}"; do
+            case "${p}" in
+                xorg-server)
+                    [[ "${x_variant}" == "xorg" ]] && filtered_pkgs+=("${p}")
+                    ;;
+                xorg-server-tearfree)
+                    [[ "${x_variant}" == "xorg-tearfree" ]] && filtered_pkgs+=("${p}")
+                    ;;
+                *)
+                    filtered_pkgs+=("${p}")
+                    ;;
+            esac
+        done
+        all_pkgs+=("${filtered_pkgs[@]}")
     fi
 
     all_pkgs=($(printf '%s\n' "${all_pkgs[@]}" | sort -u))

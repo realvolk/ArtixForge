@@ -66,7 +66,7 @@ lint_state() {
     x_stack=$(state_get X_STACK "")
     if [[ -n "$x_stack" ]]; then
         case "$x_stack" in
-            xorg|wayland|none) ;;
+            xorg|xorg-tearfree|wayland|none) ;;
             *) errors+="X_STACK '${x_stack}' is not supported"$'\n' ;;
         esac
     fi

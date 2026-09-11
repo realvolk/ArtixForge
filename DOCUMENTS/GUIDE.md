@@ -151,7 +151,10 @@ All of these can produce a comfortable environment. KDE and XFCE are the most po
 
 ## 9. Display Stack
 
-ArtixForge supports **X.Org** as the display stack. Wayland compositors are selected as desktop environments directly.
+ArtixForge supports **X.Org** as the display stack. Two variants are available:
+**X.Org** (standard) and **X.Org (tearfree)**, which enables the TearFree option by default for the modesetting driver and eliminates screen tearing on systems without a compositor.
+
+Wayland compositors are selected as desktop environments directly, and do not use this option.
 
 ---
 

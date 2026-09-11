@@ -162,7 +162,7 @@ validate_display_stack() {
     local x_stack
     x_stack="$(state_get X_STACK xorg | tr -d '[:space:]')"
 
-    if [[ "${x_stack}" != "xorg" ]]; then
+    if [[ "${x_stack}" != "xorg" && "${x_stack}" != "xorg-tearfree" ]]; then
         return 0
     fi
 
@@ -193,36 +193,55 @@ xtrace_safe() {
 retry_command() {
     local desc="${1}"; shift
     local retries=3 delay=5
+    local log_dir="/tmp/artix-installer/logs"
+    mkdir -p "${log_dir}"
+
+    local i output rc
     for ((i=1; i<=retries; i++)); do
-        local output
         output=$("$@" 2>&1)
-        local rc=$?
+        rc=$?
+
         if [[ ${rc} -eq 0 ]]; then
             return 0
         fi
-        if echo "${output}" | grep -qi "signature.*invalid\|signature.*corrupted\|PGP.*invalid\|unknown trust"; then
+
+        printf '\n=== %s (attempt %d/%d, rc=%d) ===\n%s\n' \
+            "${desc}" "${i}" "${retries}" "${rc}" "${output}" \
+            >> "${log_dir}/retry.log"
+
+        if echo "${output}" | grep -qiE 'target not found|unresolvable package conflicts|failed to prepare transaction|could not find database'; then
+            log_error "${desc} failed with a deterministic error — not retrying"
+            log_error "See ${log_dir}/retry.log for details"
+            return 1
+        fi
+
+        if echo "${output}" | grep -qiE 'signature.*(invalid|corrupted)|PGP.*invalid|unknown trust'; then
             log_error "${desc} failed with signature errors — keyring may be corrupted"
             recoverable_error "${desc} failed — signature verification error. Keyring may need repair."
             return 1
         fi
-        if echo "${output}" | grep -qi "corrupted.*package\|invalid or corrupted"; then
+
+        if echo "${output}" | grep -qiE 'corrupted.*package|invalid or corrupted'; then
             log_error "${desc} failed with corrupted package — clearing cache and refreshing mirrors"
             rm -f /var/cache/pacman/pkg/*.part /var/cache/pacman/pkg/*.tar.zst 2>/dev/null || true
             pacman -Syy --noconfirm 2>/dev/null || true
             recoverable_error "${desc} failed — package may be corrupted. Mirrors refreshed."
             return 1
         fi
-        if echo "${output}" | grep -qi "could not resolve\|no address\|connection refused\|could not connect\|failed retrieving"; then
+
+        if echo "${output}" | grep -qiE 'could not resolve|no address|connection refused|could not connect|failed retrieving|operation too slow|timed out'; then
             log_warn "${desc} failed with network errors (attempt ${i}/${retries})"
         else
             log_warn "${desc} failed (attempt ${i}/${retries})"
         fi
+
         if [[ ${i} -lt ${retries} ]]; then
             sleep "${delay}"
             delay=$((delay * 2))
         fi
     done
-    log_error "${desc} failed after ${retries} attempts"
+
+    log_error "${desc} failed after ${retries} attempts — see ${log_dir}/retry.log"
     return 1
 }
 

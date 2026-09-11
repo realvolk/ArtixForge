@@ -77,6 +77,10 @@ _quick_profile_infer_de() {
             state_set KDE_PROFILE "none"
             ;;
     esac
+
+    if [[ " $(state_get PROFILE_PACKAGES '') " == *" xorg-server-tearfree "* ]]; then
+        state_set X_STACK "xorg-tearfree"
+    fi
 }
 
 _quick_profile_select_init() {

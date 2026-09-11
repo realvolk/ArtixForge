@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v9.4.0.5-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/Version-v9.4.0.6-blue?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/Stable-v9.1.1.4-3572a5?style=flat-square" alt="Stable Release">
   <img src="https://img.shields.io/badge/Artix-[galaxy--gremlins]-blue?style=flat-square&logo=artixlinux" alt="Artix Galaxy-Gremlins">
   <img src="https://img.shields.io/badge/Language-Bash-4EAA25?style=flat-square&logo=gnu-bash" alt="Bash">
@@ -120,7 +120,7 @@ A debug toggle is available for every mode.
 | Network | NetworkManager, dhcpcd+iwd, ConnMan, none |
 | Audio | PipeWire, PulseAudio, none |
 | Shell | bash, zsh, fish |
-| Display stack | X.Org |
+| Display stack | X.Org, X.Org (teartree) |
 | Coreutils | GNU, BusyBox, uutils, ArtixForge minimal, Custom |
 | Privilege escalation | sudo, doas |
 | Encryption | LUKS full-disk, LUKS-on-LVM |

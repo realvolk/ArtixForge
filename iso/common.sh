@@ -85,9 +85,10 @@ generate_offline_package_list() {
 
     local x_stack
     x_stack="$(state_get X_STACK xorg)"
-    if [[ "${x_stack}" == "xorg" ]]; then
-        pkg_list+=(xorg-server xorg-xinit xf86-input-libinput xf86-input-evdev)
-    fi
+    case "${x_stack}" in
+        xorg)          pkg_list+=(xorg-server xorg-xinit xf86-input-libinput xf86-input-evdev) ;;
+        xorg-tearfree) pkg_list+=(xorg-server-tearfree xorg-xinit xf86-input-libinput xf86-input-evdev) ;;
+    esac
 
     if [[ -n "$(state_get PROFILE_PACKAGES '')" ]]; then
         local -a profile_pkgs

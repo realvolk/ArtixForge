@@ -478,4 +478,16 @@ appended.
 
 ---
 
+### `xorg-server` vs `xorg-server-tearfree` — upstream profile conflict
+
+`iso-profiles` ships `xorg-server-tearfree` in the package list of several upstream profiles (notably `community-gtk`). `xorg-server-tearfree` provides `xorg-server=21.1.24` and conflicts with `xorg-server`, so pacman treats it as a drop-in replacement.
+
+The original `install_drivers` unconditionally added `xorg-server` to the driver package list. When `install_desktop` later appended `PROFILE_PACKAGES` (which contained `xorg-server-tearfree` from the profile), the transaction had two conflicting packages and pacman refused with `error: unresolvable package conflicts detected`.
+
+Two fixes. `install_drivers` now picks the variant based on `X_STACK` (`xorg` → `xorg-server`, `xorg-tearfree` → `xorg-server-tearfree`). `install_desktop` filters `PROFILE_PACKAGES` to drop whichever xorg variant does not match the selected stack. The latter is defensive — with `_quick_profile_infer_de` setting `X_STACK=xorg-tearfree` when the profile's package list contains `xorg-server-tearfree`, the two should already agree. The filter protects against profiles whose intent is not captured by the inference.
+
+`X_STACK=xorg-tearfree` is a first-class value across `lint_state`, `validate_display_stack`, sanity warnings, recovery detection, ISO generation, and `install_drivers`. Anything that reads `X_STACK` and compares it against `"xorg"` needs to also match `"xorg-tearfree"` unless it specifically wants the unpatched variant.
+
+---
+
 *This document grows as new hacks are added.*

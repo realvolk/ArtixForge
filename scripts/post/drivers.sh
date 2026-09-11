@@ -125,7 +125,10 @@ install_drivers() {
             pkgs+=(mesa xf86-video-vesa)
         fi
 
-        pkgs+=(xorg-server)
+        case "$(state_get X_STACK xorg)" in
+            xorg-tearfree) pkgs+=(xorg-server-tearfree) ;;
+            xorg)          pkgs+=(xorg-server) ;;
+        esac
 
         case "${wm_de}" in hyprland|niri|sway) pkgs+=(xorg-xwayland) ;; esac
 

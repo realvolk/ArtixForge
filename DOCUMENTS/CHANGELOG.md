@@ -1,5 +1,27 @@
 # Changelog
 
+## v9.4.0.6 (2026-09-11) — ArtixForge
+
+### Added
+- **`X.Org (tearfree)` display stack option** — `tui_select_xstack` now offers three choices: `X.Org`, `X.Org (tearfree)`, and `None`. The tearfree variant installs `xorg-server-tearfree` from Artix `world`, a patched Xorg build that enables the TearFree option by default for the modesetting driver. Selectable manually, and inferred automatically when a Quick Profile's package list contains `xorg-server-tearfree` (e.g. `community-gtk`)
+
+### Fixed
+- **Xorg variant conflict during desktop install** — `install_drivers` unconditionally installed `xorg-server`, and profiles that ship `xorg-server-tearfree` in their package list (via upstream `iso-profiles` overlays) then caused `error: unresolvable package conflicts detected` when `install_desktop` ran `pacman -S` on the union. `install_drivers` now picks the variant based on `X_STACK`, and `install_desktop` filters `PROFILE_PACKAGES` to drop the xorg variant that does not match the selected stack
+- **`community-gtk` and other upstream profiles failed at desktop install** — same root cause as above; the profile's `xorg-server-tearfree` conflicted with the driver stage's `xorg-server`
+- **`install_drivers` succeeded silently after the payload database sync** — the `pacman -Sy` fix from v9.4.0.5 resolved the driver install failure, but exposed the downstream desktop conflict that had previously been masked by the earlier failure. Both are now fixed
+
+### Changed
+- **`lint_state` accepts `xorg-tearfree`** — `X_STACK` validation now permits the new value
+- **`validate_display_stack`** in `scripts/common.sh` — the xlibre conflict guard now runs for both `xorg` and `xorg-tearfree`
+- **Sanity warnings** in `scripts/tui/menus/sanity.sh` — the "Wayland compositor selected but X.Org configured" warning now matches `xorg-tearfree` alongside `xorg`
+- **Recovery detection** in `scripts/recovery/detects/desktop.sh` — `detect_xstack` now distinguishes `xorg-server-tearfree` from `xorg-server` and sets the correct state value
+- **ISO offline package list** in `iso/common.sh` — `generate_offline_package_list` picks the Xorg variant based on `X_STACK`
+
+### Notes
+- `xorg-server-tearfree` `Provides: xorg-server=21.1.24` and `Conflicts With: xorg-server`. It satisfies any `xorg-server` dependency declared by a DE package, so installing the tearfree variant does not break the desktop install — pacman treats it as a drop-in replacement
+- The TearFree patch eliminates screen tearing for users running without a compositor (bare window managers, `picom`-less XFCE, etc.). It has no effect when a compositor is active
+- `X_STACK=xorg-tearfree` is a first-class state value; quick profiles, manual selection, recovery detection, and ISO generation all understand it
+
 ## v9.4.0.5 (2026-09-11) — ArtixForge
 
 ### Fixed

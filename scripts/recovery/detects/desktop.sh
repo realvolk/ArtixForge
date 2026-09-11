@@ -62,6 +62,8 @@ detect_display_manager() {
 detect_xstack() {
     if pacman_root_has xlibre-xserver; then
         state_set X_STACK xlibre
+    elif pacman_root_has xorg-server-tearfree; then
+        state_set X_STACK xorg-tearfree
     elif pacman_root_has xorg-server; then
         state_set X_STACK xorg
     else

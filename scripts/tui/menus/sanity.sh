@@ -35,7 +35,7 @@ tui_show_sanity_warnings() {
     [[ "$(state_get WM_DE)" == "cosmic" ]] && warnings+=("COSMIC is alpha software — APIs may change, features may be missing")
     [[ "$(state_get WM_DE)" == "moksha" ]] && warnings+=("Moksha/Enlightenment is community-maintained — limited testing")
     [[ "$(state_get WM_DE)" == "none" ]] && warnings+=("No desktop environment selected")
-    [[ "$(state_get WM_DE)" =~ ^(hyprland|niri|sway)$ && "$(state_get X_STACK)" == "xorg" ]] && warnings+=("Wayland compositor selected but X.Org display stack configured")
+    [[ "$(state_get WM_DE)" =~ ^(hyprland|niri|sway)$ && "$(state_get X_STACK)" =~ ^xorg(-tearfree)?$ ]] && warnings+=("Wayland compositor selected but X.Org display stack configured")
     [[ "$(state_get WM_DE)" =~ ^(hyprland|niri)$ && "$(state_get ENABLE_ARCH_REPOS)" == "no" ]] && warnings+=("Hyprland/Niri may need Arch repositories for dependencies")
     [[ "$(state_get DISPLAY_MANAGER)" == "none" && "$(state_get WM_DE)" != "none" ]] && warnings+=("No display manager — you'll start the desktop manually")
 
