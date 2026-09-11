@@ -12,7 +12,7 @@ _quick_profile_baseline() {
     state_set USE_LVM "no"
     state_set GENERATE_UKI "no"
     state_set ALLOW_OFFLINE "no"
-    state_set ENABLE_ARCH_REPOS "yes"
+    state_set ENABLE_ARCH_REPOS "no"
     state_set MICROCODE_OVERRIDE "auto"
     state_set KEEP_BINARY_KERNEL "yes"
     state_set COREUTILS "gnu"
