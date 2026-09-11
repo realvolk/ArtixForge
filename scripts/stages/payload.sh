@@ -34,7 +34,7 @@ _payload_apply() {
         "root"
     )
 
-    local entry rel skip pat
+    local entry rel skip pat target
     while IFS= read -r -d '' entry; do
         rel="${entry#./}"
         skip=0
@@ -46,9 +46,15 @@ _payload_apply() {
         done
         [[ ${skip} -eq 1 ]] && continue
 
-        cp -rL --preserve=mode,timestamps "${src}/${entry}" /mnt/ 2>/dev/null || \
-            log_warn "Failed to copy overlay path: ${rel}"
-    done < <(cd "$src" && find . -mindepth 1 -maxdepth 1 -print0)
+        target="/mnt/${rel}"
+        if [[ -d "${src}/${rel}" ]]; then
+            mkdir -p "${target}"
+        else
+            mkdir -p "$(dirname "${target}")"
+            cp -L --preserve=mode,timestamps "${src}/${rel}" "${target}" 2>/dev/null || \
+                log_warn "Failed to copy overlay path: ${rel}"
+        fi
+    done < <(cd "$src" && find . -mindepth 1 -print0)
 }
 
 _payload_filter_caches() {
