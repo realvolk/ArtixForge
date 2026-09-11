@@ -81,7 +81,7 @@ _quick_profile_infer_de() {
 
 _quick_profile_select_init() {
     local title="$1"
-    tui_menu "${title}" "Select init system:" "dinit" "openrc" "runit" "s6"
+    tui_menu "${title}" "Select init system:" "openrc" "runit" "dinit" "s6"
 }
 
 _quick_profile_finalize() {

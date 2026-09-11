@@ -1,5 +1,23 @@
 # Changelog
 
+## v9.4.0.4 (2026-09-11) — ArtixForge
+
+### Changed
+- **Log unification** — all installer logs now live under `/tmp/artix-installer/logs/`:
+  - `install.log` remains the host-side pipeline log
+  - `artix-debug.log` moved from `${BASE_DIR}` to `/tmp/artix-installer/logs/artix-debug.log`; survives self-update since it's no longer inside the repo tree
+  - `post-stage.log` is new; captures stdout and stderr from the `artix-chroot` heredoc in `stage_post`, which previously went to the terminal and was lost on scrollback
+- **`_generate_bug_report`** now bundles the entire `/tmp/artix-installer/logs/` directory plus `install.log` and `state.conf`, so a failed install produces a complete artifact in one shot
+- **`recoverable_error` debug branch** writes its trace to the unified log path
+
+### Fixed
+- **Post-stage failures were undebuggable** — the chroot heredoc's output was never captured to a file; failures inside `install_desktop`, `setup_networking`, `install_drivers`, or any other chroot-side function printed to the terminal and disappeared once scrolled past. The `post-stage.log` redirect captures the full output for post-mortem diagnosis
+- **`stage_post` failure message pointed at a log that was never written** — the `log_file='/tmp/post-stage.log'` variable was declared but never used as a redirect target; the message now points at the real path
+- **`finalize.sh` install report referenced the old debug log path** — updated to `/tmp/artix-installer/logs/artix-debug.log`
+
+### Notes
+- Whoops
+
 ## v9.4.0.3 (2026-09-10) — ArtixForge
 
 ### Added
