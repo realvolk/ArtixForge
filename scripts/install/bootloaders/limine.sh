@@ -43,7 +43,6 @@ LIMINE_EOF
         local limine_kernel_name limine_initramfs limine_initramfs_name
         limine_kernel_name="$(basename "${limine_kernel}")"
         local kver="${limine_kernel_name#vmlinuz-}"
-        # If kernel doesn't have the vmlinuz- prefix (e.g. vmlinuz.old or bare vmlinuz), use the full name
         [[ "${kver}" == "${limine_kernel_name}" ]] && kver="${limine_kernel_name#vmlinuz}"
 
         limine_initramfs=$(find_initramfs_image "${kver}")
