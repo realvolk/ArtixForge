@@ -4,10 +4,51 @@ set -Eeuo pipefail
 _payload_apply() {
     local src="$1"
     [[ -d "$src" ]] || return 0
-    cp -rL --preserve=mode,timestamps "${src}/." /mnt/ || {
-        log_error "Overlay copy failed: ${src}"
-        return 1
-    }
+
+    local -a skip_paths=(
+        "etc/hostname"
+        "etc/hosts"
+        "etc/issue"
+        "etc/issue.live"
+        "etc/motd"
+        "etc/fstab"
+        "etc/default/grub"
+        "etc/vconsole.conf"
+        "etc/locale.conf"
+        "etc/lightdm/lightdm.conf"
+        "etc/sddm.conf"
+        "etc/sddm.conf.d"
+        "etc/local.d"
+        "etc/init.d"
+        "etc/conf.d"
+        "etc/runlevels"
+        "etc/mkinitcpio.conf"
+        "etc/mkinitcpio.conf.d"
+        "etc/mkinitcpio.conf.mod"
+        "etc/modprobe.d"
+        "etc/passwd"
+        "etc/shadow"
+        "etc/group"
+        "etc/gshadow"
+        "etc/bash"
+        "root"
+    )
+
+    local entry rel skip pat
+    while IFS= read -r -d '' entry; do
+        rel="${entry#./}"
+        skip=0
+        for pat in "${skip_paths[@]}"; do
+            if [[ "${rel}" == "${pat}" || "${rel}" == "${pat}/"* ]]; then
+                skip=1
+                break
+            fi
+        done
+        [[ ${skip} -eq 1 ]] && continue
+
+        cp -rL --preserve=mode,timestamps "${src}/${entry}" /mnt/ 2>/dev/null || \
+            log_warn "Failed to copy overlay path: ${rel}"
+    done < <(cd "$src" && find . -mindepth 1 -maxdepth 1 -print0)
 }
 
 _payload_filter_caches() {

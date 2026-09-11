@@ -95,7 +95,7 @@ install_drivers() {
             log_info "VM detected. Installing guest drivers..."
             case "${vm_type}" in
                 kvm|qemu)
-                    pkgs+=(spice-vdagent qemu-guest-agent xf86-video-qxl)
+                    pkgs+=(qemu-guest-agent vulkan-virtio)
                     ;;
                 vmware)
                     pkgs+=(open-vm-tools xf86-video-vmware)
