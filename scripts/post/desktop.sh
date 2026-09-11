@@ -185,7 +185,7 @@ install_desktop() {
     log_info "Desktop package list:"
     printf ' - %s\n' "${all_pkgs[@]}"
     clean_pacman_lock
-    if ! retry_command "desktop install" pacman -S --noconfirm --needed "${all_pkgs[@]}"; then
+    if ! retry_command "desktop install" pacman -S --noconfirm --needed --overwrite '*' "${all_pkgs[@]}"; then
         log_error "Failed to install desktop packages."
         return 1
     fi

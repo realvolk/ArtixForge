@@ -19,6 +19,31 @@ _payload_filter_caches() {
         -delete 2>/dev/null || true
 }
 
+_payload_apply_final() {
+    local profile
+    profile="$(state_get QUICK_PROFILE '')"
+    [[ -n "${profile}" ]] || return 0
+    [[ -d "${ISO_PROFILES_ROOT}/${profile}/root-overlay" ]] || return 0
+
+    log_info "Re-applying payload overlays (final pass)..."
+
+    _payload_apply "${ISO_PROFILES_ROOT}/common/root-overlay"
+    _payload_apply "${ISO_PROFILES_ROOT}/common/community/root-overlay"
+
+    case "${profile}" in
+        community-gtk|mate|cinnamon|xfce|lxde)
+            _payload_apply "${ISO_PROFILES_ROOT}/common/gtk/root-overlay" ;;
+        community-qt|plasma|lxqt)
+            _payload_apply "${ISO_PROFILES_ROOT}/common/qt/root-overlay" ;;
+    esac
+
+    _payload_apply "${ISO_PROFILES_ROOT}/${profile}/root-overlay"
+
+    _payload_filter_caches
+
+    log_info "Final overlay pass complete."
+}
+
 stage_payload() {
     if stage_should_skip payload; then return 0; fi
 
@@ -65,5 +90,12 @@ stage_payload() {
     log_info "Synchronizing target package databases after overlay..."
     artix-chroot /mnt pacman -Sy --noconfirm || log_warn "Failed to sync target databases after overlay"
 
+    if grep -q '^\[extra\]' /mnt/etc/pacman.conf 2>/dev/null; then
+        log_info "Arch repos present in target — installing keyring support..."
+        artix-chroot /mnt pacman -S --noconfirm --needed artix-archlinux-support \
+            || log_warn "Failed to install artix-archlinux-support"
+    fi
+
     stage_mark_done payload
 }
+

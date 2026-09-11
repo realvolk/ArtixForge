@@ -270,6 +270,7 @@ stage_finalize() {
 
     log_info "Applying final system configuration..."
     _finalize_write_report
+    _payload_apply_final
     _finalize_sync || { log_error "Failed to sync filesystem buffers."; return 1; }
     _finalize_cleanup_installer_state || { log_error "Failed to clean installer state."; return 1; }
     _finalize_unmount || { log_error "Failed to unmount installation target."; return 1; }
