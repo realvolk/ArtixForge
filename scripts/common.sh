@@ -271,7 +271,8 @@ recoverable_error() {
                 ;;
             "Retry with Debug"*)
                 export ARTIX_DEBUG='true'
-                exec 19> "${BASE_DIR}/artix-debug.log"
+                mkdir -p /tmp/artix-installer/logs
+                exec 19> "/tmp/artix-installer/logs/artix-debug.log"
                 export BASH_XTRACEFD=19
                 export PS4='+ ${BASH_SOURCE}:${LINENO}:${FUNCNAME[0]}: '
                 set -x

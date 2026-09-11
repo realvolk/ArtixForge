@@ -32,7 +32,8 @@ _generate_bug_report() {
     [[ -f /tmp/artix-installer/install.log ]] && cp /tmp/artix-installer/install.log "${report_dir}/"
     [[ -f /tmp/artix-installer/state.conf ]] && cp /tmp/artix-installer/state.conf "${report_dir}/"
     [[ -f /tmp/artix-migration-debug.log ]] && cp /tmp/artix-migration-debug.log "${report_dir}/"
-    [[ -f "${BASE_DIR}/artix-debug.log" ]] && cp "${BASE_DIR}/artix-debug.log" "${report_dir}/"
+    [[ -f /tmp/artix-installer/logs/artix-debug.log ]] && cp /tmp/artix-installer/logs/artix-debug.log "${report_dir}/"
+    [[ -f /tmp/artix-installer/logs/post-stage.log ]] && cp /tmp/artix-installer/logs/post-stage.log "${report_dir}/"
     
     if [[ -d /tmp/artix-installer/stages ]]; then
         cp -r /tmp/artix-installer/stages "${report_dir}/"
@@ -515,7 +516,8 @@ main() {
 
     if [[ "${DEBUG}" == 'true' ]]; then
         export ARTIX_DEBUG='true'
-        exec 19> "${BASE_DIR}/artix-debug.log"
+        mkdir -p /tmp/artix-installer/logs
+        exec 19> "/tmp/artix-installer/logs/artix-debug.log"
         export BASH_XTRACEFD=19
         export PS4='+ ${BASH_SOURCE##*/}:${LINENO}:${FUNCNAME[0]}: '
         set -x

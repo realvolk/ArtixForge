@@ -4,7 +4,7 @@ set -Eeuo pipefail
 stage_post() {
     if stage_should_skip post; then return 0; fi
 
-    local init network_stack wm_de x_stack kernel_choice audio_stack extras fs_type user_name log_file rc=0 profile_packages
+    local init network_stack wm_de x_stack kernel_choice audio_stack extras fs_type user_name rc=0 profile_packages
     init="$(state_get INIT)"
     network_stack="$(state_get NETWORK_STACK)"
     wm_de="$(state_get WM_DE)"
@@ -15,7 +15,6 @@ stage_post() {
     fs_type="$(state_get FS_TYPE ext4)"
     user_name="$(state_get USER_NAME)"
     profile_packages="$(state_get PROFILE_PACKAGES '')"
-    log_file='/tmp/post-stage.log'
 
     log_info "Preparing installer environment..."
     mkdir -p /mnt/root
@@ -34,7 +33,8 @@ stage_post() {
     export ZRAM_PERCENT="$(state_get ZRAM_PERCENT 50)"
     export PROFILE_PACKAGES="${profile_packages}"
 
-    if artix-chroot /mnt /bin/bash <<EOF
+    mkdir -p /tmp/artix-installer/logs
+    if artix-chroot /mnt /bin/bash > /tmp/artix-installer/logs/post-stage.log 2>&1 <<EOF
 set -Eeuo pipefail
 
 export INIT="${init}"
@@ -136,8 +136,8 @@ EOF
         if [[ -f /mnt/root/ArtixForge/drivers-debug.log ]]; then
             cp /mnt/root/ArtixForge/drivers-debug.log /tmp/drivers-debug.log 2>/dev/null || true
         fi
-        tui_msg "Post Installation Failed" \
-            "The post-install stage failed.\n\nLogs:\n- ${log_file}\n- /tmp/drivers-debug.log\n\nThe installation was NOT marked complete."
+    tui_msg "Post Installation Failed" \
+        "The post-install stage failed.\n\nLogs:\n- /tmp/artix-installer/logs/post-stage.log\n- /tmp/drivers-debug.log\n\nThe installation was NOT marked complete."
         return ${rc}
     fi
 

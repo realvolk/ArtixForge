@@ -111,7 +111,7 @@ _finalize_write_report() {
 
         printf 'Post-Install:\n'
         printf '  Run sudo pacman -Syu to update.\n'
-        printf '  Issues? Check artix-debug.log or open an issue at:\n'
+        printf '  Issues? Check /tmp/artix-installer/logs/artix-debug.log or open an issue at:\n'
         printf '  https://github.com/realvolk/ArtixForge/issues\n'
     } > "${report}"
     chmod 644 "${report}"
