@@ -93,26 +93,7 @@ _quick_profile_finalize() {
     tui_select_keyboard_layout
     tui_configure_users
 
-    local summary=""
-    summary+="Profile: ${display_name}"$'\n\n'
-    summary+="Filesystem: $(state_get FS_TYPE ext4)"$'\n'
-    summary+="Bootloader: $(state_get BOOTLOADER grub)"$'\n'
-    summary+="Kernel: $(state_get KERNEL_CHOICE linux)"$'\n'
-    summary+="Init: $(state_get INIT openrc)"$'\n'
-    summary+="Desktop: $(state_get WM_DE none)"$'\n'
-    summary+="Display Manager: $(state_get DISPLAY_MANAGER none)"$'\n'
-    summary+="Network: $(state_get NETWORK_STACK none)"$'\n'
-    summary+="Audio: $(state_get AUDIO_STACK none)"$'\n'
-    summary+="X Stack: $(state_get X_STACK none)"$'\n'
-    summary+="Privilege Escalation: $(state_get PRIV_ESCALATION sudo)"$'\n'
-    summary+="LUKS: $(state_get USE_LUKS no)"$'\n'
-    summary+="LVM: $(state_get USE_LVM no)"$'\n'
-    summary+="UKI: $(state_get GENERATE_UKI no)"$'\n'
-    summary+="Extras: $(state_get EXTRAS)"
-
-    if ! tui_yesno "Confirm Profile" "${summary}"$'\n\n'"Proceed with this profile?"; then
-        return 1
-    fi
+    tui_show_summary || return 1
 
     if tui_yesno "Customize" "Would you like to customize any settings before installing?"; then
         state_set QUICK_INSTALL "no"
@@ -315,7 +296,7 @@ tui_quick_install() {
         return 1
     fi
 
-    if iso_profiles_available; then
+    if iso_profiles_ensure; then
         if tui_yesno "Profile Source" "Use upstream iso-profiles (recommended)?"; then
             if _quick_profile_from_yaml; then
                 return 0
