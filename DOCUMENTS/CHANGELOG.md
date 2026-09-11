@@ -1,5 +1,19 @@
 # Changelog
 
+## v9.4.0.5 (2026-09-11) — ArtixForge
+
+### Fixed
+- **`stage_payload` left target databases unsynced** — upstream `iso-profiles` `root-overlay` trees ship their own `/etc/pacman.conf` and `/etc/pacman.d/mirrorlist-arch`; `stage_payload` applied them via `cp -rL`, but nothing ran `pacman -Sy` on the target afterward. Every subsequent chroot-side `pacman -S` failed with `error: failed to prepare transaction (could not find database)` because repos listed in the conf had no `.db` files in `/mnt/var/lib/pacman/sync/`. `stage_payload` now runs `artix-chroot /mnt pacman -Sy --noconfirm` after applying overlays and before marking the stage done
+- **`stage_validate payload` did not check database state** — the marker file `/mnt/.artixforge-payload-<profile>` was the only validation, and it was written even when the post-overlay `pacman -Sy` soft-failed. A payload stage marked complete but with unsynced databases was treated as valid on resume. The validator now also checks for `/mnt/var/lib/pacman/sync/world.db` and, when `[extra]` is present in the target's `pacman.conf`, `/mnt/var/lib/pacman/sync/extra.db`
+- **`artix-installer.conf` did not include the quick-profile keys** — `prepare_handoff` now writes `QUICK_PROFILE` and `PROFILE_PACKAGES` to the target configuration file alongside the other state keys
+
+### Changed
+- **`retry_command` now logs captured output on failure** — previously the output of a failed command was captured into a variable, checked for signature/network error patterns, and discarded.
+
+### Notes
+- The `stage_payload` database sync is the fix that unblocks installations using any upstream profile whose `root-overlay` includes a modified `pacman.conf` (notably `community`, `community-gtk`, `community-qt`, and any profile extending them)
+- `stage_payload` runs `pacman -Sy` as a soft-fail (`|| log_warn`); the payload marker is still written if the sync fails, which means offline installs and unreachable mirrors do not block the pipeline. The `stage_validate payload` database check is what forces re-execution on resume when the sync did not complete
+
 ## v9.4.0.4 (2026-09-11) — ArtixForge
 
 ### Changed

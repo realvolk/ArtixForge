@@ -268,6 +268,8 @@ state_save() {
         printf "KEEP_BINARY_KERNEL='%s'\n"    "$(state_get KEEP_BINARY_KERNEL yes)"
         printf "COREUTILS='%s'\n"             "$(state_get COREUTILS gnu)"
         printf "KERNEL_CONFIG_DEPTH='%s'\n"   "$(state_get KERNEL_CONFIG_DEPTH auto)"
+        printf "QUICK_PROFILE='%s'\n"         "$(state_get QUICK_PROFILE '')"
+        printf "PROFILE_PACKAGES='%s'\n"      "$(state_get PROFILE_PACKAGES '')"
         printf "QUICK_INSTALL='%s'\n"         "$(state_get QUICK_INSTALL no)"
         printf "POWER_USER='%s'\n"            "$(state_get POWER_USER no)"
         printf "POWERUSER_PACKAGES='%s'\n"    "$(state_get POWERUSER_PACKAGES '')"
@@ -442,7 +444,11 @@ stage_validate() {
             profile="$(state_get QUICK_PROFILE '')"
             [[ -z "$profile" ]] && return 0
             marker="/mnt/.artixforge-payload-${profile}"
-            [[ -f "$marker" ]]
+            [[ -f "$marker" ]] || return 1
+            [[ -f /mnt/var/lib/pacman/sync/world.db ]] || return 1
+            if grep -q '^\[extra\]' /mnt/etc/pacman.conf 2>/dev/null; then
+                [[ -f /mnt/var/lib/pacman/sync/extra.db ]] || return 1
+            fi
             ;;
         *)          return 1 ;;
     esac
