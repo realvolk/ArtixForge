@@ -49,7 +49,9 @@ _partition_layout_bios() {
     local root_num
     root_num=$(_get_root_partition_num "${use_swap}")
     [[ -b "$(get_partition_name "${disk}" "${root_num}")" ]] || die 'root partition not created'
-    [[ "${use_swap}" == "yes" && -b "$(get_partition_name "${disk}" 2)" ]] || die 'swap partition not created'
+    if [[ "${use_swap}" == "yes" ]]; then
+        [[ -b "$(get_partition_name "${disk}" 2)" ]] || die 'swap partition not created'
+    fi
 }
 
 _partition_layout_uefi() {
@@ -73,7 +75,9 @@ _partition_layout_uefi() {
     local root_num
     root_num=$(_get_root_partition_num "${use_swap}")
     [[ -b "$(get_partition_name "${disk}" "${root_num}")" ]] || die 'root partition not created'
-    [[ "${use_swap}" == "yes" && -b "$(get_partition_name "${disk}" 2)" ]] || die 'swap partition not created'
+    if [[ "${use_swap}" == "yes" ]]; then
+        [[ -b "$(get_partition_name "${disk}" 2)" ]] || die 'swap partition not created'
+    fi
 }
 
 _mark_partition_lvm() {
