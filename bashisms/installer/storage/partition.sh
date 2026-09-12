@@ -98,6 +98,10 @@ _partition_luks_on_lvm() {
     log_info "Opening LUKS container..."
     printf '%s' "${luks_pass}" | cryptsetup luksOpen "${target}" cryptlvm -
     [[ -b /dev/mapper/cryptlvm ]] || die "LUKS mapper /dev/mapper/cryptlvm not created"
+
+    if [[ "$(state_get LUKS_KEYFILE no)" == "yes" ]]; then
+        _create_luks_keyfile "${target}"
+    fi
 }
 
 _partition_setup_lvm() {

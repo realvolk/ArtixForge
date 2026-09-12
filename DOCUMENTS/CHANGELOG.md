@@ -1,5 +1,25 @@
 # Changelog
 
+## v9.5.0.6 (2026-09-12) — Artix Installer
+
+### Fixed
+- **LUKS keyfile was never fully implemented** — the TUI set `LUKS_KEYFILE=yes` and `bootloader.sh` had a block that embedded `/crypto_keyfile.bin` into the initramfs *if the file already existed*, but nothing ever generated the file, added it to a LUKS keyslot, or emitted `cryptkey=rootfs:/crypto_keyfile.bin` in the kernel cmdline. The feature was half-wired: the consumer existed, the producer did not.
+
+  On BIOS installs this made the difference visible — `/boot` lives inside the encrypted root, so GRUB prompts to unlock it, then the initramfs prompts again to mount root. The keyfile was supposed to skip the second prompt. It never did, on either platform. The UEFI "works" observation was a boot layout difference (ESP-mounted `/boot` requires only one unlock), not the keyfile firing.
+
+  `filesystem.sh` and `partition.sh` now generate a random `/crypto_keyfile.bin` on the live ISO immediately after each `cryptsetup luksFormat`, register it as a second LUKS keyslot via `cryptsetup luksAddKey`, and store the path in `LUKS_KEYFILE_PATH`. `generate_root_cmdline` emits `cryptkey=rootfs:/crypto_keyfile.bin` when `LUKS_KEYFILE=yes`, which flows into every bootloader backend (GRUB, rEFInd, Limine, EFIStub) and the UKI cmdline. The embed block in `configure_bootloader` now dies if `LUKS_KEYFILE=yes` but the file is missing, or if initramfs regeneration fails — previously both were silent skips via `|| true`.
+
+  Result: on BIOS with LUKS+`/boot` on the encrypted root, one GRUB prompt and a silent initramfs unlock. On UEFI with the ESP-mounted `/boot`, zero prompts. The original passphrase remains as keyslot 0.
+
+### Notes
+- **Historical observation, now untestable:** prior to v9.5.0.6, UEFI installs with `LUKS_KEYFILE=yes` booted with fewer LUKS unlock prompts than the layout should have produced. At the time, the keyfile feature was non-functional (no keyslot added, no `cryptkey=` in the kernel cmdline, no keyfile in the initramfs), so the extra prompt should have been present. The observation was interpreted as "the keyfile works on UEFI," which it did not; nothing was unlocking anything via the keyfile.
+
+  Two explanations are possible. **(a)** The prompt that "disappeared" was never there in the first place — UEFI installs where `/boot` is on the ESP have one fewer unlock step than BIOS installs where `/boot` is inside LUKS, and the observation was a misread of layout differences. **(b)** The initramfs `encrypt` hook fell through to a successful unlock without a valid credential, which would be a security issue in `cryptsetup` or the hook, not in ArtixForge.
+
+  With v9.5.0.6 the keyfile feature is functional, so the original configuration is no longer reproducible: the flags that used to produce the anomaly now produce the correct behavior. Verifying (a) vs (b) would require reverting the keyfile fixes in a controlled test or reproducing the observation on a `cryptsetup` version where the same setup is possible. Neither is worth doing unless the symptom reappears.
+
+  Marked as an unverified historical observation. If it turns out (b) is real, the security surface is `cryptsetup`'s `encrypt` mkinitcpio hook, not this installer. Which would be a CVE.
+
 ## v9.5.0.5 (2026-09-12) — Artix Installer
 
 ### Fixed
