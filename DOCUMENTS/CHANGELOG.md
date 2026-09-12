@@ -1,5 +1,16 @@
 # Changelog
 
+## v9.5.0.2 (2026-09-12) — Artix Installer
+
+### Fixed
+- **Swap was completely unreachable from the installer TUI** — `SWAP_ENABLED` and `SWAP_SIZE` existed in the state registry, the storage stages consumed them (`partition.sh` for a dedicated swap partition, `post.sh` for swapfile/zram/zswap), and `finalize.sh` displayed them in the installation report. But no menu ever set them. The full-flow `tui_collect_install_config` in `bashisms/tui/menus/main.sh` skipped directly from LUKS/LVM to AURIS, and the quick-profile baselines only cleared the keys. Every install silently fell through to `STATE_DEFAULTS[SWAP_ENABLED]=none`, and the storage stage created a two-partition layout (EFI + root) regardless of what the user wanted.
+
+  Root cause is a port gap from the old `tui-rewrite` branch: there, FILLY owned both the swap prompt and the size validation as part of its input/output widget set, so the Bash side never had a `tui_select_swap` function. When the `tui-rewrite` work was shelved and the refactor moved everything under `bashisms/`, the swap prompt didn't make it back into the main tree. The `v10-refactor` branch inherited the missing function from `main` and the gap was only surfaced during an actual install test after the refactor merged.
+
+  Added `tui_select_swap` with a five-way choice (`partition`, `swapfile`, `zram`, `zswap`, `none`) and wired it into `tui_collect_install_config` after `tui_select_luks`. Sizes are entered in human-friendly form (`4G`, `512M`, `1T`) and normalized to MB by a new `parse_size_to_mb` helper in `bashisms/common/common.sh`. Both BIOS (`parted`) and UEFI (`sgdisk`) partition layouts were updated to consume the MB value and format it for their respective tools — previously the BIOS path expected a `parted` size string (`4GiB`) while the UEFI path expected an `sgdisk` size string (`+4G`), with no shared convention. Now the state key stores MB, and each consumer formats at the point of use.
+
+  ZRAM percentage is validated to 10–100, sizes below 64 MB are rejected with a retry loop, and quick profiles still default to no swap unless the user picks "Customize" from the finalize step.
+
 ## v9.5.0.1 (2026-09-12) — Artix Installer
 
 ### Fixed

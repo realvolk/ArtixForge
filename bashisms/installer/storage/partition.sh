@@ -30,14 +30,15 @@ _partition_wipe() {
 }
 
 _partition_layout_bios() {
-    local disk="$1" use_swap="$2" swap_size="$3"
+    local disk="$1" use_swap="$2" swap_size_mb="$3"
 
     log_info "Creating MBR partition layout..."
     parted -s "${disk}" mklabel msdos
     parted -s "${disk}" mkpart primary 1MiB 2MiB
     if [[ "${use_swap}" == "yes" ]]; then
-        parted -s "${disk}" mkpart primary linux-swap 2MiB "${swap_size}"
-        parted -s "${disk}" mkpart primary "${swap_size}" 100%
+        local swap_end=$(( 2 + swap_size_mb ))MiB
+        parted -s "${disk}" mkpart primary linux-swap 2MiB "${swap_end}"
+        parted -s "${disk}" mkpart primary "${swap_end}" 100%
     else
         parted -s "${disk}" mkpart primary 2MiB 100%
     fi
@@ -52,12 +53,12 @@ _partition_layout_bios() {
 }
 
 _partition_layout_uefi() {
-    local disk="$1" use_swap="$2" swap_size="$3"
+    local disk="$1" use_swap="$2" swap_size_mb="$3"
 
     log_info "Creating GPT partition layout..."
     sgdisk -n 1:0:+1024M -t 1:ef00 "${disk}"
     if [[ "${use_swap}" == "yes" ]]; then
-        sgdisk -n 2:0:+"${swap_size}" -t 2:8200 "${disk}"
+        sgdisk -n 2:0:+"${swap_size_mb}M" -t 2:8200 "${disk}"
         sgdisk -n 3:0:0 -t 3:8300 "${disk}"
     else
         sgdisk -n 2:0:0 -t 2:8300 "${disk}"

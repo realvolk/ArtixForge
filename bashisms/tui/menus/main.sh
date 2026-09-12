@@ -122,6 +122,58 @@ tui_select_theme() {
     done
 }
 
+tui_select_swap() {
+    local enabled
+    enabled=$(tui_menu "Swap" "Configure swap?" \
+        "Partition (dedicated swap partition)" \
+        "Swapfile (file in root filesystem)" \
+        "ZRAM (compressed RAM)" \
+        "Zswap (compressed cache in front of a swap device)" \
+        "None") || return 1
+
+    case "${enabled}" in
+        "Partition"*)
+            state_set SWAP_ENABLED "partition"
+            local size size_mb
+            while true; do
+                size=$(tui_input "Swap Size" "Enter swap partition size (e.g. 4G, 512M, 1T):" "4G") || return 1
+                size_mb=$(parse_size_to_mb "${size}")
+                [[ -n "${size_mb}" && "${size_mb}" -ge 64 ]] && break
+                tui_msg_quick "Invalid Size" "Enter a size like 4G, 512M, 1T (minimum 64M)."
+            done
+            state_set SWAP_SIZE "${size_mb}"
+            ;;
+        "Swapfile"*)
+            state_set SWAP_ENABLED "swapfile"
+            local size size_mb
+            while true; do
+                size=$(tui_input "Swapfile Size" "Enter swapfile size (e.g. 4G, 512M):" "4G") || return 1
+                size_mb=$(parse_size_to_mb "${size}")
+                [[ -n "${size_mb}" && "${size_mb}" -ge 64 ]] && break
+                tui_msg_quick "Invalid Size" "Enter a size like 4G, 512M (minimum 64M)."
+            done
+            state_set SWAP_SIZE "${size_mb}"
+            ;;
+        "ZRAM"*)
+            state_set SWAP_ENABLED "zram"
+            local pct
+            while true; do
+                pct=$(tui_input "ZRAM Percent" "Percent of RAM to allocate to ZRAM (10-100):" "50") || return 1
+                [[ "${pct}" =~ ^[0-9]+$ && "${pct}" -ge 10 && "${pct}" -le 100 ]] && break
+                tui_msg_quick "Invalid Percent" "Enter a number between 10 and 100."
+            done
+            state_set ZRAM_PERCENT "${pct}"
+            ;;
+        "Zswap"*)
+            state_set SWAP_ENABLED "zswap"
+            ;;
+        *)
+            state_set SWAP_ENABLED "none"
+            state_set SWAP_SIZE "0"
+            ;;
+    esac
+}
+
 tui_collect_install_config() {
     if [[ "${ARTIX_BOOT_MODE:-uefi}" == "bios" ]]; then
         tui_msg_quick "BIOS Mode" "Legacy BIOS boot detected. UEFI features (UKI, EFIStub, rEFInd, Limine) are disabled."
@@ -165,6 +217,7 @@ tui_collect_install_config() {
     tui_select_priv_escalation
     tui_select_extras
     tui_select_luks
+    tui_select_swap
     tui_select_auris
     tui_select_arch_repos
     tui_select_offline_mode

@@ -340,3 +340,16 @@ recoverable_error() {
         esac
     done
 }
+
+parse_size_to_mb() {
+    local size="$1"
+    size="${size// /}"
+    case "${size}" in
+        *[Tt]) printf '%s' $(( ${size%[Tt]} * 1024 * 1024 )) ;;
+        *[Gg]) printf '%s' $(( ${size%[Gg]} * 1024 )) ;;
+        *[Mm]) printf '%s' "${size%[Mm]}" ;;
+        *[Kk]) printf '%s' $(( ${size%[Kk]} / 1024 )) ;;
+        *[0-9]) printf '%s' "${size}" ;;
+        *)      printf '' ;;
+    esac
+}
