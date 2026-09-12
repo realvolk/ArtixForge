@@ -11,7 +11,7 @@ Do not open a public issue for security issues.
 
 | Version | Supported |
 |---------|-----------|
-| v9.4.0.6 | Latest Commits |
+| v9.5.0.5 | Latest Commits |
 | v9.1.1.4 | Latest Stable release |
 | < v9.1.1.4 | No |
 
@@ -53,7 +53,7 @@ Security concerns include, but are not limited to:
 - gum TUI transport — interactive widgets called directly via `/dev/tty`; passwords from `tui_password` and `tui_password_confirm` pass through gum's stdout, never written to temp files
 - gum checklist output — newline-separated results parsed with whitespace stripping before use; `tr -d '[]"'` applied at consumption points to prevent artifact injection into system commands (`useradd -G`, `state_set`)
 - Password handling — user and root passwords are hashed with `openssl passwd -6` before being stored to `state.conf`. Plaintext passwords never touch the state file or disk. LUKS passphrases are stored plaintext (required by `cryptsetup`) in the state file, which lives on tmpfs and is lost on reboot
-- Bug report tarball — contains install log and state file; state file may contain password hashes and LUKS passphrases. The tarball is written to `/tmp` with default permissions and the user is warned to include it only when reporting issues
+- Bug report tarball — contains install log, state file, debug trace, post-stage log, and retry log. State file may contain password hashes and LUKS passphrases. The tarball is written to `/tmp` with default permissions and the user is warned to include it only when reporting issues
 
 ## Best Practices
 
