@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**ArtixForge collects nothing.**
+**Artix Installer collects nothing.**
 
 The installer runs entirely on your local machine. It does not:
 
@@ -10,7 +10,7 @@ The installer runs entirely on your local machine. It does not:
 - Include any analytics, tracking, or monitoring code
 - Store your passwords, passphrases, or personal data beyond what is needed to complete the installation
 
-## What ArtixForge stores locally (and how it's handled)
+## What Artix Installer stores locally (and how it's handled)
 
 | Data | Location | Fate |
 |------|----------|------|
@@ -30,7 +30,8 @@ The installer runs entirely on your local machine. It does not:
 | Recovery detection data | `/tmp/artix-installer/state.conf` (reconstructed) | Deleted on reboot (tmpfs) |
 | ATA migration backup | `/arch-migration-backup-YYYYMMDD-HHMMSS/` | Stays on disk (root-only, chmod 700); user must delete manually |
 | Encrypted state presets | `presets/*.enc` | GPG symmetric (AES256); decrypted only in memory or temp files when loaded |
-| Bug report tarball | `/tmp/artixforge-bugreport-*.tar.gz` | Stays in /tmp until user deletes or reboot (tmpfs) |
+| Bug report tarball | `/tmp/artixforge-bugreport-*.tar.gz` | Contains install log, state, debug trace, post-stage log, retry log. Stays in /tmp until user deletes or reboot (tmpfs) |
+| Host-side logs (debug, post-stage, retry) | `/tmp/artix-installer/logs/` | Deleted on reboot (tmpfs) |
 | Post-install script copy | `/root/<script>` on target system | Remains on installed system; user must delete manually if sensitive |
 | One-shot service command | Per-init service file on target system | Self-destructs on success; retries on failure |
 | Per-user dotfiles | `~/.config` and home directory | Cloned from user-provided URL; remains in user home |

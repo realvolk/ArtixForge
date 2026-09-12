@@ -1,4 +1,4 @@
-<h1 align="center">ArtixForge</h1>
+<h1 align="center">Artix Installer</h1>
 
 <p align="center">
   <strong>Modular operating system deployment for Artix Linux</strong><br>
@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <strong>This is the official branch for v9.4</strong><br>
+  <strong>This is the official branch for v10</strong><br>
   Find a bug? Make an issue.
 </p>
 
@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v9.4.0.6-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/Version-v9.5.0.0-blue?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/Stable-v9.1.1.4-3572a5?style=flat-square" alt="Stable Release">
   <img src="https://img.shields.io/badge/Artix-[galaxy--gremlins]-blue?style=flat-square&logo=artixlinux" alt="Artix Galaxy-Gremlins">
   <img src="https://img.shields.io/badge/Language-Bash-4EAA25?style=flat-square&logo=gnu-bash" alt="Bash">
@@ -58,7 +58,9 @@ You'll be greeted by a main menu where you choose your installation mode.
 | Situation | Log location |
 |-----------|-------------|
 | Installer failure | `/tmp/artix-installer/install.log` |
-| Debug mode enabled | `~/ArtixForge/artix-debug.log` |
+| Debug mode enabled | `/tmp/artix-installer/logs/artix-debug.log` |
+| Post-install stage failure | `/tmp/artix-installer/logs/post-stage.log` |
+| Retried command failures | `/tmp/artix-installer/logs/retry.log` |
 | Migration failure | `/tmp/artix-migration-debug.log` |
 | Bug report tarball | `/tmp/artixforge-bugreport-*.tar.gz` |
 
@@ -66,9 +68,9 @@ Include these in any GitHub issue.
 
 ---
 
-# What is ArtixForge?
+# What is Artix Installer?
 
-ArtixForge is a **modular operating system deployment framework** for Artix
+Artix Installer is a **modular operating system deployment framework** for Artix
 Linux. It handles partitioning, filesystem creation, base system installation,
 bootloader setup, desktop environment, drivers, and extra tools — all from a
 single interface.
@@ -88,6 +90,9 @@ single interface.
 - **Advanced features gate** — Recovery, Power User, Migration, and ISO require root password.
 - Over 9 trillion system configurations in a standard install, over 1
   quintillion with Power User mode.
+- All framework code lives under `bashisms/` — the repository root holds only
+  the entry point, packaging, version metadata, documentation, and the
+  framework tree.
 
 ---
 
@@ -120,8 +125,8 @@ A debug toggle is available for every mode.
 | Network | NetworkManager, dhcpcd+iwd, ConnMan, none |
 | Audio | PipeWire, PulseAudio, none |
 | Shell | bash, zsh, fish |
-| Display stack | X.Org, X.Org (teartree) |
-| Coreutils | GNU, BusyBox, uutils, ArtixForge minimal, Custom |
+| Display stack | X.Org, X.Org (tearfree) |
+| Coreutils | GNU, BusyBox, uutils, Artix Installer minimal, Custom |
 | Privilege escalation | sudo, doas |
 | Encryption | LUKS full-disk, LUKS-on-LVM |
 | Theme | ArtixForge, Artix, Jet Black, Mono, Retro |
@@ -143,10 +148,10 @@ A debug toggle is available for every mode.
 - One-shot post-install services (`POST_INSTALL_ONESHOT`) — self-destructing per-init service files
 - Bug report generator — collects logs, state, stage markers, system info into tarball on failure
 - Advanced features gate — root password required for Recovery, Power User, Migration, ISO
-- Modular architecture — separate scripts for storage, install, post, stages, recovery, and TUI
+- Modular architecture — separate subsystems under `bashisms/` for state, common utilities, TUI, installer, recovery, migrations, ISO, and power user
 - Universal logger — writes to `/tmp/artix-installer/install.log` and `/mnt/var/log/artix-installer.log`
 - Passwords hashed before storage — plaintext never touches disk
-- Quick install profiles with one-click setup
+- Quick install profiles with one-click setup — hardcoded presets, plus upstream `iso-profiles` profiles fetched from Artix's gitea `wip` branch
 - Network pre-configuration — WiFi, DHCP, or static IP before installation
 - Optional mirror ranking
 - Full-disk encryption (LUKS) with passphrase confirmation and keyfile support
@@ -162,8 +167,9 @@ A debug toggle is available for every mode.
 ## ISO Generation
 
 - Build custom Artix live ISOs from any Quick Profile or full custom configuration
-- Live Desktop mode — full desktop with ArtixForge installer on the desktop
-- Installer mode — boots directly into ArtixForge TUI, minimal size
+- Extends upstream `iso-profiles` base profiles rather than generating its own
+- Live Desktop mode — full desktop with Artix Installer on the desktop
+- Installer mode — boots directly into Artix Installer TUI, minimal size
 - Offline ISO — bundle all packages; installation works without internet
 - Extra packages beyond profile selection
 - Build logs saved alongside ISO
@@ -188,7 +194,7 @@ A debug toggle is available for every mode.
 
 - Source-based package compilation (Gentoo-style)
 - BusyBox init support
-- Swappable coreutils (GNU, BusyBox, uutils, ArtixForge minimal, custom recipes)
+- Swappable coreutils (GNU, BusyBox, uutils, Artix Installer minimal, custom recipes)
 - Hardware auto-detection with `localmodconfig` support
 - Manual kernel configuration
 - Compilation profiles (default, hardened, performance, safe)

@@ -1,5 +1,99 @@
 # Changelog
 
+## v9.5.0.0 (2026-09-12) — Artix Installer
+
+### Added
+- **`bashisms/packages/` subsystem** — single source of truth for every package list in the project, replacing the parallel tables that had drifted across installer, migrations, ISO builder, recovery, and ATA
+  - `bashisms/packages/catalog/` — data files, no functions, no state reads: `ata.sh`, `audio.sh`, `base.sh`, `bootloader.sh`, `de.sh`, `extras.sh`, `filesystem.sh`, `gpu.sh`, `init.sh`, `iso.sh`, `kernel.sh`, `network.sh`, `services.sh`, `xstack.sh`
+  - `bashisms/packages/resolve.sh` — pure query functions, all taking arguments, all printing newline-separated output, all consumed by callers via `mapfile -t`
+  - `bashisms/packages/install.sh` — `pkg_install` (dedupes, calls `retry_command`), `pkg_install_from`, `pkg_remove`, `pkg_exists`, `pkg_verify_list`, `pkg_query_installed`
+- **Service mapping catalog** — `catalog/services.sh` holds `SERVICE_MAP_OPENRC_DINIT`, `SERVICE_MAP_OPENRC_RUNIT`, `SERVICE_MAP_OPENRC_S6`, `SERVICE_MAP_SYSTEMD_OPENRC`, plus auto-generated reverse maps
+- **ISO catalog** — `catalog/iso.sh` holds `ISO_BASE_PACKAGES`, `ISO_MICROCODE_PACKAGES`, `ISO_BUILD_TOOLS`, `ISO_KERNEL_CHOICES`, `ISO_EXTRA_PACKAGES_CHOICES`, `DE_CHROOT_BUILD`, `KERNEL_CHROOT_BUILD`
+- **Target base catalog** — `catalog/base.sh` holds `TARGET_BASE_PACKAGES`, `TARGET_SHELL_PACKAGES`, `TARGET_STORAGE_PACKAGES`, `TARGET_UKI_PACKAGES`
+- **ATA catalog** — `catalog/ata.sh` holds `ATA_SKIP_UNITS` (~100 entries), `ATA_ARCH_DE_PACKAGES`, `ATA_NTP_CANDIDATES`, `ATA_BASE_PACKAGES`
+- **`DE_SEAT_PACKAGE` array** — the five seatd-using DEs declared explicitly; fixes an undeclared-array crash under `set -u` that would have aborted any install not picking hyprland/sway/niri/mango/cosmic
+- **State registry** — `STATE_KEYS`, `STATE_DEFAULTS`, `STATE_VALIDATORS`, `STATE_KEYS_CHROOT`, `STATE_KEYS_PROFILE`, `STATE_USER_FIELDS`, `STATE_USER_DEFAULTS` in `bashisms/state/state.sh`
+- **New resolvers in `resolve.sh`:** `resolve_seat_package`, `resolve_kernel_headers`, `resolve_kernel_image`, `resolve_init_fallback_packages`, `resolve_service_map`, `resolve_ata_base_packages`, `resolve_systemd_unit_package`, `resolve_iso_base_packages`, `resolve_iso_microcode_packages`, `resolve_iso_build_tools`, `resolve_target_base_packages`, `resolve_target_shell_packages`, `resolve_target_storage_packages`, `resolve_target_uki_packages`
+- **`LVM_VG_NAME` state key** — LVM volume group name is now a first-class state value instead of a hardcoded `vg0` literal scattered across storage, bootloader, and validation code
+- `tui_select_luks` prompts for the VG name when LVM is enabled, defaulting to `vg0`
+- `generate_root_cmdline` reads the state key so every bootloader backend (GRUB, rEFInd, Limine, EFIStub, UKI cmdline) respects a custom VG name
+- `validate_system` checks for any LVM volume group (`Found volume group`) rather than grepping for the literal `vg0`, then warns specifically if the expected VG name is missing
+- Recovery's auto-mount falls back to `/dev/mapper/*-root` so a custom-named VG is still detected on unknown systems
+- Registered in `STATE_KEYS` and `STATE_DEFAULTS`; not added to `STATE_KEYS_CHROOT` (post-install modules don't read it) or `STATE_KEYS_PROFILE` (VG names are instance-specific and shouldn't carry over from a reused quick-install profile)
+
+### Changed
+- **Every catalog consumer rewired** — `installer/post/{audio,networking,drivers,desktop}.sh`, `migrations/des/common.sh`, `migrations/inits/common.sh`, `migrations/ata/{ata-map,ata-detect,ata-convert,ata-migrate}.sh`, `installer/install/basestrap.sh`, `iso/{common,build,tui}.sh` now call `resolve_*` instead of carrying inline tables
+- **`_desktop_packages_for` deleted** — replaced by `resolve_de_packages`
+- **`DE_PACKAGES` in `migrations/des/common.sh` deleted** — six associative arrays and the `_installed_de_packages` case statement removed
+- **`skip_units` in `ata-map.sh` deleted** — moved to `catalog/ata.sh`; the live `pacman -Qo`/`pacman -Si` probing extracted to `resolve_systemd_unit_package`
+- **`iso_profile_for_de` deleted** — `DE_TO_PROFILE` in the catalog is authoritative; the old function used `xfce` where the catalog uses `xfce4`
+- **`_install_target_init_fallback` deleted** — `install_target_init` is now a single catalog-driven install; signature changed from `(source_init, target_init)` to `(target_init)`
+- **`state_save` iterates `STATE_KEYS`** — 122 static keys plus the per-user loop, one registry, no more per-key `printf` lines that could silently drop a key
+- **`handoff.sh` iterates `STATE_KEYS_CHROOT` and `STATE_KEYS_PROFILE`** — the chroot conf file and the quick-install profile file are now views of the registry
+- **`stage_post.sh` iterates `STATE_KEYS_CHROOT`** — the ~18 hand-written `export` lines in the heredoc replaced with one loop; the list is guaranteed in sync with `handoff.sh`
+- **`lint_state` iterates `STATE_VALIDATORS`** — enum checks moved to the registry; only the block-device and cross-field checks remain hand-written
+- **`state_set` writes via `printf '%q'`** — the `sed -i` escaping path replaced with a temp-file rewrite; values containing single quotes, backslashes, or spaces now round-trip correctly
+- **`state_get` decodes via `eval "printf '%s' ${raw}"`** — the inverse of `%q`; the old quote-unwrap loop left `'\''` sequences embedded in values
+- **`basestrap.sh` `install_base_system`** — eight case blocks collapsed to resolver calls; init package set now uses `resolve_init_fallback_packages` (adds `openrc-settingsd`, `runit-rc`, `s6-base` to the target install)
+- **`cache_artix_packages`** — dropped nonexistent `<init>-system` packages (`openrc-system`, `runit-system`, `dinit-system`, `s6-system`)
+- **`bootloader_install_limine`** — removed redundant `pacman -S limine`; the package is installed by `basestrap` via `resolve_bootloader_packages`
+- **`build_artix_iso`** — `arch_flag` declaration moved to the top of the function, fixing a `set -u` abort on the offline + non-repo kernel path; `DE_CHROOT_BUILD` and `KERNEL_CHROOT_BUILD` are now catalog arrays
+- **`generate_offline_package_list`** — ~120 lines of case blocks reduced to resolver calls; the base packages come from `ISO_BASE_PACKAGES`, the microcode from `ISO_MICROCODE_PACKAGES`, the init from `resolve_init_fallback_packages`, the DE from `resolve_de_packages`
+- **`generate_artools_profile`** — the per-init `package-init` YAML block now iterates `resolve_network_packages` and `resolve_audio_service_packages`
+- **`tui.sh`** — kernel menus read `ISO_KERNEL_CHOICES`; the ISO extras checklist reads `ISO_EXTRA_PACKAGES_CHOICES`
+- **`resolve_de_profile`** replaces `iso_profile_for_de` — the mapping is now `DE_TO_PROFILE` in the catalog, single source
+- **`ATA_ARCH_DE_PACKAGES`** — Arch-side DE detection table moved from `ata-detect.sh` to the catalog; MATE warning removed because MATE is supported (the ATA-specific limitation was a red herring)
+- **`ata-detect.sh`** — GNOME detection now warns the user that GNOME is unsupported on Artix and sets `WM_DE=none`; GNOME packages are preserved across migration
+- **`resolve_systemd_unit_package`** — prefers the target init's suffix (`-openrc`, `-runit`, etc.) then falls back to the others, instead of always trying `-openrc` first
+- **`verify_installer_layout`** — requires `packages/`, `packages/catalog/`, `packages/resolve.sh`, `packages/install.sh`
+- **`install` source block** — `common` → `state` → other common → catalog → resolve → install helpers → everything else
+- **`linux-radxa` kernel entry removed** — confirmed nonexistent in Artix repos
+- **`BOOTLOADER_EXTRA_EFI`** changed from string to array for correct `"${arr[@]}"` expansion
+
+### Fixed
+- **State key drop bug** — `QUICK_PROFILE`, `PROFILE_PACKAGES`, `FSTAB_ISSUES`, `BOOT_ISSUES`, `PACMAN_ISSUES`, `MIGRATION_ISSUES`, `ISO_ISSUES`, `BROKEN_PACKAGES`, `HAS_CHAOTIC`, `GPU_DRIVER`, `VM_GUEST`, `DISPLAY_PROTOCOL`, `CPU_UCODE`, `SEAT_MANAGER`, `SEAT_MANAGER_DISABLED` — all were set by TUI or recovery but omitted from the `state_save` printf block, so every save silently dropped them. The registry makes this class of bug structurally impossible
+- **State value escaping** — values containing single quotes were mangled on save and double-mangled on the next save; `%q` + `eval` round-trips correctly and idempotently
+- **`resolve_seat_package` crash** — undeclared `DE_SEAT_PACKAGE` under `set -u` aborted any consumer that queried a non-seatd DE; fixed by declaring the array with the five seatd entries
+- **KVM guest package set** — `VM_GUEST_PACKAGES[kvm]` no longer includes the nonexistent `spice-vdagent` / `xf86-video-qxl`; catalog carries `qemu-guest-agent vulkan-virtio`
+- **XWayland for Wayland DEs** — `install_drivers` now uses `resolve_de_display_server`, covering mango and cosmic in addition to hyprland/sway/niri
+- **Xorg variant conflict during desktop install** — profile packages that ship `xorg-server-tearfree` no longer collide with the driver stage's `xorg-server`; both come from `X_STACK_PACKAGES` via `resolve_xstack_packages`
+- **`migrations/des/common.sh` and `migrations/inits/common.sh` double-source bug** — both set `MIG_ROOT=""` and ran `ensure_migration_root` at source time; sourcing both in one migration run re-prompted the target picker. Both files now carry `_ARTIX_DES_COMMON_SOURCED` / `_ARTIX_INITS_COMMON_SOURCED` guards, and `ensure_migration_root` returns early if `MIG_ROOT` is already valid
+- **`stage_names` dead code removed** — declared but never used in both migration files
+- **`_pacman_Q` dead code removed** from `migrations/des/common.sh`
+- **`iso/profiles/` empty directory removed** — vestigial, never populated
+- **`arch_flag` `set -u` abort** — `${arch_flag}` was referenced before its `local arch_flag=""` declaration in `build_artix_iso`
+
+### Removed
+- **Inline package tables from every consumer:** `DE_PACKAGES`, `DE_DISPLAY_MANAGER`, `DM_PACKAGES`, `AUDIO_PACKAGES`, `X_PACKAGES`, `NETWORK_PACKAGES`, `EXTRA_PACKAGES` (migrations/des), `OPENRC_TO_DINIT`, `OPENRC_TO_RUNIT`, `OPENRC_TO_S6`, `SYSTEMD_TO_OPENRC` and the generated inverses (migrations/inits), `_desktop_packages_for`, `_installed_de_packages`, `iso_profile_for_de`, `_install_target_init_fallback`, `skip_units` (ATA)
+- **`linux-radxa`** from `KERNEL_PACKAGES`, `KERNEL_HEADERS`, `KERNEL_LIST`
+- **`_state_format_value`** from `state.sh` — superseded by `printf '%q'`
+
+### Notes
+- The registry is the last structural piece. Adding a state key is now: one entry in `STATE_KEYS`, one entry in `STATE_DEFAULTS`, optionally one in `STATE_VALIDATORS` and one in a view array (`STATE_KEYS_CHROOT`, `STATE_KEYS_PROFILE`, `STATE_USER_FIELDS`). No consumer touches the key list; every list is iterated
+- Adding a DE, kernel, network stack, audio stack, filesystem, or bootloader is one catalog entry plus the TUI prompt. Every consumer picks it up automatically
+- The `%q`-encoded state file is still shell-`source`-able; `state_load` remains a one-liner
+- `catalog/services.sh` will be reused by the upcoming ATA service-map refactor (currently `migrations/ata/ata-map.sh` still has its own `SYSTEMD_TO_OPENRC`-equivalent data in the migration path; the catalog version is authoritative)
+- GNOME was briefly considered for the DE catalog during this refactor and removed before merge: Artix dropped GNOME support in September 2025 because `gnome-session` 49 removed the non-systemd fallback code that elogind patches had been relying on. The stale `world` packages can be installed but GNOME will not launch on Artix's inits, and GNOME 49+ has no X11 session. ATA still detects GNOME on the source Arch system and warns the user before migration, but the fresh-install path does not offer it.
+
+## v9.4.0.7 (2026-09-12) — Artix Installer
+
+### Changed
+- **Layout refactor** — all subsystems moved under `bashisms/`; repository root now contains only `install`, `PKGBUILD`, `README.md`, `VERSION`, `DOCUMENTS/`, and the framework tree
+  - `scripts/state.sh` → `bashisms/state/state.sh`
+  - `scripts/common.sh`, `scripts/kernels.sh`, `scripts/yaml.sh` → `bashisms/common/`
+  - `scripts/tui/` → `bashisms/tui/`
+  - `scripts/stages/`, `scripts/storage/`, `scripts/install/`, `scripts/post/`, `scripts/iso-profiles.sh` → `bashisms/installer/`
+  - `scripts/recovery/` → `bashisms/recovery/` (split out of the installer tree)
+  - `poweruser/` → `bashisms/poweruser/`
+  - `iso/` → `bashisms/iso/`
+  - `migrations/` → `bashisms/migrations/`
+- **Every path reference updated by hand** — `install`, chroot heredocs, migration sources, ISO builder `BASE_DIR` derivation, `POWERUSER_DIR`, `install`'s `verify_installer_layout` and `source_tree` dispatch
+- **`ARTIXTECTURE.md`** — updated for the new layout, added §1.1 directory table
+- **`README.md`** — title renamed to "Artix Installer", log table updated for `post-stage.log` and `retry.log`, `bashisms/` layout noted
+
+### Fixed
+- **`teartree` → `tearfree`** typo in the supported-configuration table
+
 ## v9.4.0.6 (2026-09-11) — ArtixForge
 
 ### Added

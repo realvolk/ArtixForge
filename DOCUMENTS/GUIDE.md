@@ -1,4 +1,4 @@
-# ArtixForge — Installation Guide
+# Artix Installer — Installation Guide
 
 Welcome! This guide explains every option you'll see in the installer.
 Don't worry if you don't know what something means – that's what this is for.
@@ -7,13 +7,13 @@ Don't worry if you don't know what something means – that's what this is for.
 
 ## 1. Installation Interface
 
-ArtixForge uses a **Terminal UI (TUI)** built on `gum`. The TUI runs in
+Artix Installer uses a **Terminal UI (TUI)** built on `gum`. The TUI runs in
 any terminal and is fully keyboard-driven.
 
 The interface presents sequential menus with clear titles and current values.
 At any point you can see what's been configured and make changes.
 
-If you boot an ArtixForge-generated ISO with a desktop environment, open a
+If you boot an Artix Installer-generated ISO with a desktop environment, open a
 terminal and run `sudo ./install` — you'll get the same TUI.
 
 ---
@@ -23,6 +23,7 @@ terminal and run `sudo ./install` — you'll get the same TUI.
 | Mode | What it does | When to use it |
 |------|-------------|----------------|
 | Installation | Full guided setup, step by step | First time, clean disk |
+| Quick Install | Pre-made configuration, answer fewer questions | You know roughly what you want |
 | Resume | Continue an interrupted install | The installer crashed or you rebooted |
 | Recovery | Scan `/mnt` for an existing system, auto-detect issues, repair | Fixing a damaged installation with smart detection |
 | Power User | Build packages from source, Gentoo-style | You want full control over compilation |
@@ -86,7 +87,7 @@ The software that loads your operating system when you switch on the computer.
 | GRUB | The most widely-used bootloader; supports dual-boot, theming, and encrypted partitions. **If you're unsure, use GRUB.** |
 | rEFInd | A graphical boot manager that auto-detects installed operating systems. |
 | EFIStub | Boots the Linux kernel directly from your UEFI firmware – no separate bootloader needed. Very fast, but requires compatible firmware and manual setup. |
-| Limine | Modern, portable, multiprotocol bootloader. Clean config syntax, BTRFS snapshot booting, Windows chainloading. UEFI-only on ArtixForge. |
+| Limine | Modern, portable, multiprotocol bootloader. Clean config syntax, BTRFS snapshot booting, Windows chainloading. UEFI-only on Artix Installer. |
 | U-Boot | ARM board bootloader for aarch64 targets. |
 
 All choices work; GRUB is the most forgiving for beginners and the easiest to troubleshoot.
@@ -115,7 +116,6 @@ The core of the operating system.
 | tkg | Fully customisable; build with your own configuration | Stability depends entirely on your choices |
 | linux-aarch64 | ARM64 kernel from ARMtix | Stable |
 | linux-aarch64-lts | ARM64 LTS kernel | Very stable |
-| linux-radxa | ARM64 kernel for Radxa boards | Stable |
 
 Standard `linux` is a safe choice. If you do a lot of interactive work or gaming, `linux-zen` or `linux-cachyos-*` may feel snappier. Avoid `linux-libre` unless you are certain your hardware works without proprietary firmware.
 
@@ -132,6 +132,7 @@ Your graphical interface.
 | LXQt | Full desktop | Very lightweight, modular |
 | LXDE | Full desktop | Even lighter, older |
 | Cinnamon | Full desktop | Traditional, Windows-like |
+| MATE | Full desktop | Traditional GNOME 2 fork, actively maintained |
 | Budgie | Full desktop | Modern, clean design |
 | Moksha | Full desktop | Enlightenment-based, community |
 | COSMIC | Full desktop | Rust-based, alpha software |
@@ -142,16 +143,22 @@ Your graphical interface.
 | dwm | Tiling window manager | Minimal, configured via source code |
 | IceWM | Stacking window manager | Extremely light, familiar look |
 | MangoWM | Wayland compositor | Lightweight, active development |
-| MATE | Full desktop | Traditional GNOME 2 fork, actively maintained |
 | none | No desktop | You'll start from a terminal |
 
 All of these can produce a comfortable environment. KDE and XFCE are the most popular; Hyprland and Sway are great if you like tinkering.
+
+**GNOME is not offered.** Artix dropped GNOME support in September 2025
+because `gnome-session` 49 removed the non-systemd fallback code that the
+elogind patches relied on. The packages still exist in the `world` repo but
+GNOME will not launch on Artix's inits, and GNOME 49+ has no X11 session. If
+you have GNOME installed from a previous Arch system and migrate with ATA,
+Artix Installer will detect it and warn you.
 
 ---
 
 ## 9. Display Stack
 
-ArtixForge supports **X.Org** as the display stack. Two variants are available:
+Artix Installer supports **X.Org** as the display stack. Two variants are available:
 **X.Org** (standard) and **X.Org (tearfree)**, which enables the TearFree option by default for the modesetting driver and eliminates screen tearing on systems without a compositor.
 
 Wayland compositors are selected as desktop environments directly, and do not use this option.
@@ -198,7 +205,7 @@ Both are secure. `sudo` is more familiar; `doas` is loved by minimalists.
 
 ## 12a. User Accounts
 
-ArtixForge lets you create multiple user accounts during installation.
+Artix Installer lets you create multiple user accounts during installation.
 
 | Option | What it does |
 |--------|-------------|
@@ -233,7 +240,6 @@ The basic command-line tools (`ls`, `cp`, `cat`, …).
 | GNU | Full-featured, standard on most Linux systems |
 | BusyBox | Lightweight, fewer options, smaller footprint |
 | uutils | Rust rewrite of GNU coreutils, modern |
-| ArtixForge | Our own debloated set (based on BusyBox with selectable features) |
 | Custom | Write your own recipe – full control |
 
 GNU coreutils are the safest choice for compatibility with scripts and existing habits. BusyBox is perfect for minimal systems. uutils is exciting but still maturing.
@@ -244,7 +250,7 @@ GNU coreutils are the safest choice for compatibility with scripts and existing 
 
 Encrypts your entire root partition. Requires a passphrase at boot.
 
-LUKS works well with any filesystem. If you also enable LVM, the encryption wraps around the LVM physical volume – this combination (LUKS on LVM) is powerful but the bootloader configuration must be correct, especially with GRUB or EFIStub. The installer handles this automatically, but if you manually edit things later, be careful.
+LUKS works well with any filesystem. If you also enable LVM, the LVM volume group is created on top of the encrypted container — this combination (LVM on LUKS) is powerful but the bootloader configuration must be correct, especially with GRUB or EFIStub. The installer handles this automatically, but if you manually edit things later, be careful.
 
 ---
 
@@ -270,7 +276,7 @@ If you selected Power User mode, you can compile packages from source instead of
 
 ## 16.1. Community Recipes
 
-ArtixForge can download additional recipes from the community repository at
+Artix Installer can download additional recipes from the community repository at
 [ArtixForge-recipes](https://github.com/realvolk/ArtixForge-recipes).
 
 Use `anvil sync` to pull the latest recipe list and download new recipes.
@@ -280,7 +286,7 @@ COMMUNITY recipes through the "Manage recipe sections" option in `anvil --tui`.
 To contribute your own recipes, see the [ArtixForge-recipes](https://github.com/realvolk/ArtixForge-recipes) repository.
 
 If a source download fails during a build (404, checksum mismatch),
-ArtixForge can automatically detect newer upstream versions and
+Artix Installer can automatically detect newer upstream versions and
 heal the recipe. Select "Heal recipe" from the build failure menu.
 
 ---
@@ -293,9 +299,8 @@ Instead of answering every question, you can pick a pre-made profile:
 - **Plasma** – KDE Plasma desktop.
 - **XFCE** – XFCE4 desktop.
 - **Cinnamon** – Cinnamon desktop.
+- **MATE** – MATE desktop.
 - **LXQt** – LXQt desktop.
-- **Community GTK** – Community GTK ISO package set.
-- **Community Qt** – Community Qt ISO package set.
 - **Gaming** – Plasma, linux-zen, Steam, Lutris, DOSBox, MangoHud, GameMode.
 - **Server** – No desktop, firewalld, tmux.
 - **Minimal** – Bare system, no extras.
@@ -307,22 +312,38 @@ Profiles are a starting point; you can still tweak anything afterwards in the ma
 You can also **load a custom profile** from a saved configuration file
 (e.g., `/etc/artixforge-profile.conf` from a previous installation).
 
+### Upstream Artix ISO profiles
+
+When the `iso-profiles` package is installed, Quick Profiles additionally offers
+the upstream Artix profiles from `/usr/share/artools/iso-profiles/` — the same
+profiles Artix uses to build their official ISOs (including **Community GTK**,
+**Community Qt**, and others). If the profiles are not present locally, the
+installer fetches the current `wip` branch from Artix's gitea repository and
+extracts it on demand.
+
+These profiles contribute their package sets to the install (on top of the
+built-in presets above) and additionally apply their `root-overlay` trees to the
+installed system. The overlays provide cosmetic defaults (wallpapers, greeter
+themes, application defaults, `/etc/skel`), but identity files — hostname,
+users, bootloader configuration, autologin — are filtered out so your own
+choices survive.
+
 ---
 
 ## 18. ISO Generation (Build ISO mode)
 
-ArtixForge can build a fully customised Artix live ISO.
+Artix Installer can build a fully customised Artix live ISO.
 
 When you select **Build ISO** from the main menu, you will be asked:
 
 | Option | What it does |
 |--------|-------------|
-| Live Desktop | Includes a full desktop environment (KDE, XFCE, etc.) and the ArtixForge installer on the desktop. Boot into a graphical environment, then open a terminal and run the installer. |
-| Installer | Boots directly into the ArtixForge TUI. No desktop, no extra packages. Minimal and fast. |
+| Live Desktop | Includes a full desktop environment (KDE, XFCE, etc.) and the Artix Installer on the desktop. Boot into a graphical environment, then open a terminal and run the installer. |
+| Installer | Boots directly into the Artix Installer TUI. No desktop, no extra packages. Minimal and fast. |
 
 After choosing the boot mode, you can either:
 
-- **Pick a Quick Profile** – Base, Plasma, XFCE, Cinnamon, LXQt, Community GTK, Community Qt, Gaming, Server, Minimal.
+- **Pick a Quick Profile** – Base, Plasma, XFCE, Cinnamon, MATE, LXQt, Gaming, Server, Minimal, or any of the upstream Artix profiles.
 - **Customise everything** – Same detailed configuration as a normal installation.
 - **Load a saved profile** – Reuse a configuration from a previous installation.
 
@@ -354,7 +375,7 @@ The migration will:
 - Handle custom (non-package) services by saving them separately
 - Install the new init packages and enable the appropriate services
 
-Not all service names are identical across init systems. ArtixForge includes mapping tables
+Not all service names are identical across init systems. Artix Installer includes mapping tables
 for common services; for less common ones, you will receive a warning and the service will
 need to be migrated manually.
 
@@ -407,6 +428,10 @@ The migration will:
 
 **What does NOT migrate automatically:**
 
+- **GNOME** — Artix dropped GNOME support in September 2025 because
+  `gnome-session` 49 removed the non-systemd fallback code that elogind patches
+  relied on. Your GNOME packages are preserved, but GNOME will not launch after
+  migration. Install a supported desktop or run the DE migration after boot.
 - Snap packages (require systemd — will not function on Artix)
 - Complex monotonic systemd timers (best-effort loop script used)
 - Custom systemd unit files (backed up, not converted)
@@ -434,7 +459,7 @@ Read these warnings carefully – they exist because the combination you chose m
 
 ## 21. Recovery Mode
 
-If your system fails to boot or behaves unexpectedly, ArtixForge can help.
+If your system fails to boot or behaves unexpectedly, Artix Installer can help.
 Boot the live ISO, mount your root partition to `/mnt`, and select
 **Recovery** from the main menu.
 
@@ -483,6 +508,9 @@ Reboot, start the installer again, and pick **Resume** from the main menu. It wi
 
 **Can I create multiple user accounts?**
 Yes. The installer lets you add, edit, and remove users with custom groups, shells, sudo access, per-user DE, and dotfiles. At least one user is required.
+
+**Why isn't GNOME an option?**
+Artix dropped GNOME support in September 2025. See §8 for details.
 
 **Where can I get help?**
 Open an issue on [GitHub](https://github.com/realvolk/ArtixForge/issues) or visit the Artix community forums.

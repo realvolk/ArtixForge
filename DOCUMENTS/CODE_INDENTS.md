@@ -490,4 +490,246 @@ Two fixes. `install_drivers` now picks the variant based on `X_STACK` (`xorg` �
 
 ---
 
+## Refactor — moving everything under `bashisms/`
+
+The v10 layout move. `scripts/`, `poweruser/`, `iso/`, `migrations/`,
+and `scripts/recovery/` were all peers at the repository root because they
+grew organically over five months. But they were never peers — `poweruser/`
+is a library that `scripts/` consumes, `recovery/` is its own subsystem
+that has nothing to do with the install pipeline, `migrations/` sits beside
+the installer rather than inside it. The flat layout made it look like
+these were independent top-level modules when they were actually one
+framework with subsystems.
+
+All of them moved under `bashisms/`. The repo root now contains only the
+entry point (`install`), packaging (`PKGBUILD`), version metadata
+(`VERSION`), documentation (`DOCUMENTS/`), and the framework itself
+(`bashisms/`). `scripts/` was renamed to `installer/` in the process,
+because that's what it is — the install pipeline, not "the scripts."
+
+Nothing about the code changed. Every path reference was updated by hand
+(no sed), one subsystem per commit, each verified with `bash -n` and a
+full install before the next move. The refactor exists purely so the
+directory tree reflects the architecture that was already there.
+
+### Why the flat layout was misleading
+
+The old tree told a lie about the shape of the project. `scripts/` and
+`poweruser/` looked like equal peers, but `scripts/stages/poweruser.sh`
+sources twelve files from `poweruser/lib/`. `iso/` looked like a peer
+subsystem, but it consumes `iso-profiles`, which `scripts/iso-profiles.sh`
+also consumes, and the two paths had to stay in sync. `migrations/`
+looked independent, but `install`'s `run_migration` sources directly from
+it and dispatches back into `scripts/` functions.
+
+None of that was wrong, but none of it was visible from `ls`. A reader
+had to trace imports to figure out which directories depended on which.
+After the move, the tree says what the dependencies already were:
+`bashisms/installer/` and `bashisms/recovery/` are siblings;
+`bashisms/poweruser/` is a library that both the installer and the
+standalone `anvil` CLI consume; `bashisms/iso/` and
+`bashisms/migrations/` are their own subsystems with their own entry
+points.
+
+### What needed updating
+
+TLDR: Every file that referenced a moved path.
+
+---
+
+## Refactor — the package catalog and the state registry (v9.5.0.0)
+
+The two structural changes that finished the framework. Before this version,
+"what packages does XFCE need" was answered in four or more places, and "what
+state keys exist" was answered in six or more. Both had drifted. Both were
+unfixable by discipline alone — the shape of the code made the drift inevitable.
+
+### The package catalog
+
+`bashisms/packages/` is now the single source of truth for every package list
+in the project. Three layers, sourced in this order:
+
+1. **`catalog/*.sh`** — pure data. Associative or indexed arrays, one file per
+   domain. No functions, no `state_get` calls, no side effects. The catalog
+   knows nothing about who consumes it.
+2. **`resolve.sh`** — pure query functions. Every function takes its arguments
+   (never reads state), prints newline-separated output, and is consumed by
+   callers via `mapfile -t`. Output shape is uniform so a caller that swaps one
+   resolver for another doesn't have to change.
+3. **`install.sh`** — `pkg_install` dedupes its argument list and calls
+   `retry_command`. `pkg_install_from` reads newline-separated input from a pipe
+   and delegates. `pkg_remove`, `pkg_exists`, `pkg_verify_list` are thin
+   wrappers.
+
+**The rule is: consumers ask the catalog, they do not carry their own table.**
+Adding a DE, kernel, network stack, audio stack, filesystem, or bootloader is
+one catalog entry plus the TUI prompt. Ten consumers pick it up automatically.
+
+### Landmines found during the refactor
+
+**`DE_SEAT_PACKAGE` was declared but never populated.** `resolve_seat_package`
+does `${DE_SEAT_PACKAGE[${1}]:-}`, which under `set -u` aborts if the array
+itself is undeclared. It wasn't declared anywhere, and every DE query that
+wasn't `hyprland`/`sway`/`niri`/`mango`/`cosmic` crashed. The fix was to
+declare it as an empty assoc array in `catalog/de.sh` and populate the five
+seatd entries. **When adding a resolver that reads a catalog array, make sure
+the array is declared, even if empty.** `${arr[key]:-}` protects against an
+unset *key*, not an unset *array*.
+
+**GNOME itself is unsupported on Artix.** This was the big one. Artix dropped
+GNOME support in September 2025 because `gnome-session` 49 removed the
+non-systemd fallback code that elogind patches relied on. The stale `world`
+packages still exist but GNOME will not launch on Artix's inits, and GNOME
+49+ has no X11 session. The DE catalog does not offer GNOME. ATA still
+detects GNOME on the source Arch system (via `ATA_ARCH_DE_PACKAGES[gnome]`)
+and warns the user during migration, but the fresh-install path is clean.
+**Anything in the DE catalog must be verified against Artix's actual support
+status, not `pacman -Ss` output.** `pacman -Ss` shows what's in the repos,
+not what works.
+
+### The state registry
+
+`bashisms/state/state.sh` now owns the key list. Seven arrays:
+
+| Array | Shape | Consumers |
+|-------|-------|-----------|
+| `STATE_KEYS` | ordered list of static key names | `state_save` |
+| `STATE_DEFAULTS` | assoc: key → default | `state_save`, `handoff.sh`, `stage_post.sh` |
+| `STATE_VALIDATORS` | assoc: key → POSIX regex | `lint_state` |
+| `STATE_KEYS_CHROOT` | ordered subset | `handoff.sh`, `stage_post.sh` |
+| `STATE_KEYS_PROFILE` | ordered subset | `handoff.sh` |
+| `STATE_USER_FIELDS` | ordered list of suffixes | `state_save`, `handoff.sh` |
+| `STATE_USER_DEFAULTS` | assoc: suffix → default | `state_save` |
+
+Before this, adding a key required editing six places: `state_save`'s printf
+block, `handoff.sh`'s config export, the `stage_post` heredoc, `lint_state`,
+the preset loader, and any TUI menu that read it. Missing one silently dropped
+the key on the next save. This happened with `QUICK_PROFILE` and
+`PROFILE_PACKAGES` in v9.4.0.6 — they were added to the TUI, never added to
+`state_save`, and vanished on resume. The registry makes that class of bug
+structurally impossible.
+
+**Before the registry, the following keys were being silently dropped by every
+`state_save`**: `QUICK_PROFILE`, `PROFILE_PACKAGES`, `FSTAB_ISSUES`,
+`BOOT_ISSUES`, `PACMAN_ISSUES`, `MIGRATION_ISSUES`, `ISO_ISSUES`,
+`BROKEN_PACKAGES`, `HAS_CHAOTIC`, `GPU_DRIVER`, `VM_GUEST`,
+`DISPLAY_PROTOCOL`, `CPU_UCODE`, `SEAT_MANAGER`, `SEAT_MANAGER_DISABLED`,
+`RECOVERY_STATUS`. Some of them persisted anyway because `state_set` writes
+through to the file, but the moment a `state_save` ran, they were gone. The
+recovery flow's `reconstruct_state_from_system` calls `state_save` at the end,
+which means every recovery detection key was being wiped on the next save.
+
+### `printf '%q'` for state values
+
+`state_set` writes via a temp-file rewrite using `printf '%q'`. `state_get`
+decodes with `eval "printf '%s' ${raw}"` — the `%q` inverse. This is the
+standard bash idiom for "make this string safe to re-parse" and "parse this
+string that was made safe."
+
+The old format was `KEY='value'` with a hand-rolled escape function. Values
+containing single quotes were escaped as `'\''` on write and never unescaped
+on read. A `POST_INSTALL_SCRIPT` value with a single quote in the path came
+back mangled, and got double-mangled on the next save. `%q` handles spaces,
+quotes, backslashes, newlines, and any shell metacharacter, correctly and
+idempotently.
+
+**Do not "simplify" `state_get` by removing the `eval`.** Without it, `%q`
+output is returned raw. The `|| value="${raw}"` fallback exists because `%q`
+output is technically shell-safe but the eval can still fail on pathological
+input (very rare). It's a belt-and-suspenders.
+
+### `handoff.sh` and `stage_post` iterate the same array
+
+Both the chroot conf file (`/mnt/etc/artix-installer.conf`, written by
+`handoff.sh`) and the chroot environment exports (in `stage_post`'s heredoc)
+iterate `STATE_KEYS_CHROOT`. Adding a key to that one array puts it in both
+places.
+
+**The conf file and the env exports are not interchangeable.** Post modules
+get state via exported environment variables, not by sourcing the conf file.
+The conf file is read by `services.sh` (via `[[ -f /etc/artix-installer.conf
+]] && source /etc/artix-installer.conf`) and by the target system's own
+tooling, but not by `state_get`. That's why both mechanisms exist.
+
+### Service mapping tables moved to the catalog
+
+`SERVICE_MAP_OPENRC_DINIT`, `SERVICE_MAP_OPENRC_RUNIT`,
+`SERVICE_MAP_OPENRC_S6`, `SERVICE_MAP_SYSTEMD_OPENRC`, and their
+auto-generated inverses are now in `catalog/services.sh`. The reverse maps
+are generated by iterating the forward maps, so there's one source of truth
+per direction.
+
+**The reverse maps are non-deterministic when a forward map has two keys
+pointing to the same value.** For example, `OPENRC_TO_DINIT[NetworkManager]`
+and `OPENRC_TO_DINIT[networkmanager]` both map to `NetworkManager`. Iterating
+the forward map to build `DINIT_TO_OPENRC[NetworkManager]` gives whichever
+key the iteration happens to see last. Bash hash iteration order is
+implementation-defined but stable within a run. This is pre-existing and
+only affects the rare "migrate away from dinit back to openrc" path. Not
+fixed.
+
+### `install_target_init` signature change
+
+Old signature: `install_target_init source_init target_init`. The first
+argument was used to compute the source init's package list and substitute
+the init name to derive target packages. That logic was fragile —
+`pacman -Qsq openrc` returns any package matching "openrc", and substituting
+"openrc" for "runit" in every name produces garbage like `runit-settingsd`.
+
+New signature: `install_target_init target_init`. It reads
+`INIT_FALLBACK_PACKAGES[target]` from the catalog and installs exactly that
+set. No substitution, no fallback function. The catalog knows what packages
+install each init correctly.
+
+`_install_target_init_fallback` is gone. It was the fallback for the
+substitution path's failure, and the substitution path is gone.
+
+### `remove_source_init` is hybrid
+
+Catalog set + `pacman -Qsq` sweep, deduped via an associative array. The
+catalog pass guarantees the init's core packages come off. The `pacman -Qsq`
+pass catches stragglers like third-party `foo-openrc` packages that aren't in
+the catalog. This preserves the old behavior's permissiveness while making
+the catalog the authority for the known set.
+
+### Migration double-source guard
+
+`migrations/des/common.sh` and `migrations/inits/common.sh` both set
+`MIG_ROOT=""` and run `ensure_migration_root` at source time. If a single
+migration run sources both (which `run_migration` in `install` does, for
+cross-type migrations), the second source reset `MIG_ROOT` and re-prompted
+the interactive target picker.
+
+Both files now carry `_ARTIX_DES_COMMON_SOURCED` / `_ARTIX_INITS_COMMON_SOURCED`
+guards. And `ensure_migration_root` returns early if `MIG_ROOT` is already
+exported and valid. Two layers, because the guard prevents re-source and the
+early return prevents re-prompt even when the guard is bypassed.
+
+### `arch_flag` declaration order in `build_artix_iso`
+
+`${arch_flag}` was referenced in the offline non-repo kernel path before its
+`local arch_flag=""` declaration. Under `set -u`, that's a fatal error. The
+declaration moved to the top of the function. **`local` in bash is not
+hoisted.** A variable declared with `local` only exists from the `local`
+statement onward.
+
+### `BOOTLOADER_EXTRA_EFI` is an array now
+
+It was a string (`"efibootmgr dosfstools"`). The refactor switched the
+consumer to `"${BOOTLOADER_EXTRA_EFI[@]}"`, which requires it to be an array.
+It's now `declare -ga BOOTLOADER_EXTRA_EFI; BOOTLOADER_EXTRA_EFI=(efibootmgr
+dosfstools)`. Every catalog entry that holds a list of packages is an array
+now, except the ones that go through `read -ra` at the consumer site (which
+also works).
+
+### `iso/profiles/` was empty
+
+Vestigial directory, `rm -rf`'d. It was planned for ArtixForge-shipped
+profile overrides that never materialized. If you need to ship a profile
+extension, add it under `bashisms/iso/profiles/<name>/` and wire the
+ISO builder to find it. For now the upstream `iso-profiles` package is the
+only source.
+
+---
+
 *This document grows as new hacks are added.*

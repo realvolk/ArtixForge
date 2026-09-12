@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 SELF_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
 BASE_DIR="${SELF_PATH%/*}"
-SCRIPT_DIR="${BASE_DIR}/scripts"
+BASHISMS_DIR="${BASE_DIR}/bashisms"
 
 if [[ "${ARTIX_RUNTIME_DIR:-}" != "/tmp/artix-run" && -d /tmp ]]; then
     mkdir -p /tmp/artix-run
@@ -131,24 +131,40 @@ check_installer_version() {
 }
 
 verify_installer_layout() {
-    local required_files=( common.sh state.sh kernels.sh )
-    local required_dirs=( tui storage install post stages recovery )
+    local required_files=(
+        "${BASHISMS_DIR}/common/common.sh"
+        "${BASHISMS_DIR}/state/state.sh"
+        "${BASHISMS_DIR}/common/kernels.sh"
+        "${BASHISMS_DIR}/packages/resolve.sh"
+        "${BASHISMS_DIR}/packages/install.sh"
+    )
+    local required_dirs=(
+        "${BASHISMS_DIR}/tui"
+        "${BASHISMS_DIR}/installer/stages"
+        "${BASHISMS_DIR}/installer/storage"
+        "${BASHISMS_DIR}/installer/install"
+        "${BASHISMS_DIR}/installer/post"
+        "${BASHISMS_DIR}/recovery"
+        "${BASHISMS_DIR}/iso"
+        "${BASHISMS_DIR}/migrations"
+        "${BASHISMS_DIR}/poweruser"
+        "${BASHISMS_DIR}/packages"
+        "${BASHISMS_DIR}/packages/catalog"
+    )
     local file dir
-    for file in "${required_files[@]}"; do [[ -f "${SCRIPT_DIR}/${file}" ]] || return 1; done
-    for dir in "${required_dirs[@]}"; do [[ -d "${SCRIPT_DIR}/${dir}" ]] || return 1; done
-    [[ -d "${SCRIPT_DIR}/tui/menus" ]] || return 1
-    [[ -d "${BASE_DIR}/iso" ]] || return 1
-    [[ -d "${BASE_DIR}/migrations" ]] || return 1
+    for file in "${required_files[@]}"; do [[ -f "${file}" ]] || return 1; done
+    for dir in "${required_dirs[@]}"; do [[ -d "${dir}" ]] || return 1; done
+    [[ -d "${BASHISMS_DIR}/tui/menus" ]] || return 1
     return 0
 }
 
 source_tree() {
     local dir file
     for dir in "$@"; do
-        [[ -d "${SCRIPT_DIR}/${dir}" ]] || { printf '[!] missing directory: %s\n' "${dir}" >&2; return 1; }
+        [[ -d "${dir}" ]] || { printf '[!] missing directory: %s\n' "${dir}" >&2; return 1; }
         while IFS= read -r -d '' file; do
             source "${file}" || { printf '[!] Failed to source: %s\n' "${file}" >&2; return 1; }
-        done < <(find "${SCRIPT_DIR}/${dir}" -maxdepth 1 -type f -name '*.sh' -print0 | sort -z)
+        done < <(find "${dir}" -maxdepth 1 -type f -name '*.sh' -print0 | sort -z)
     done
 }
 
@@ -164,13 +180,21 @@ if ! verify_installer_layout; then
     exit 0
 fi
 
-source "${SCRIPT_DIR}/common.sh"
-source "${SCRIPT_DIR}/state.sh"
-source "${SCRIPT_DIR}/kernels.sh"
-source "${SCRIPT_DIR}/yaml.sh"
-source "${SCRIPT_DIR}/iso-profiles.sh"
-source "${BASE_DIR}/iso/tui.sh" 2>/dev/null || true
-source_tree tui storage install post stages
+source "${BASHISMS_DIR}/common/common.sh"
+source "${BASHISMS_DIR}/state/state.sh"
+source "${BASHISMS_DIR}/common/kernels.sh"
+source "${BASHISMS_DIR}/common/yaml.sh"
+source_tree "${BASHISMS_DIR}/packages/catalog"
+source "${BASHISMS_DIR}/packages/resolve.sh"
+source "${BASHISMS_DIR}/packages/install.sh"
+source "${BASHISMS_DIR}/installer/iso-profiles.sh"
+source "${BASHISMS_DIR}/iso/tui.sh" 2>/dev/null || true
+source_tree \
+    "${BASHISMS_DIR}/tui" \
+    "${BASHISMS_DIR}/installer/storage" \
+    "${BASHISMS_DIR}/installer/install" \
+    "${BASHISMS_DIR}/installer/post" \
+    "${BASHISMS_DIR}/installer/stages"
 
 MODE=""
 DEBUG="false"
@@ -336,16 +360,16 @@ run_migration() {
     log_info "Running migration: ${mig_type} ${mig_src} → ${mig_tgt}"
     case "${mig_type}" in
         ata)
-            [[ -f "${BASE_DIR}/migrations/ata/ata-migrate.sh" ]] || die "ATA migration module not found"
-            source "${BASE_DIR}/migrations/ata/ata-migrate.sh"
+            [[ -f "${BASHISMS_DIR}/migrations/ata/ata-migrate.sh" ]] || die "ATA migration module not found"
+            source "${BASHISMS_DIR}/migrations/ata/ata-migrate.sh"
             ata_migrate_main
             ;;
         init)
-            source "${BASE_DIR}/migrations/inits/common.sh"
+            source "${BASHISMS_DIR}/migrations/inits/common.sh"
             run_init_migration "${mig_src}" "${mig_tgt}"
             ;;
         desktop)
-            source "${BASE_DIR}/migrations/des/common.sh"
+            source "${BASHISMS_DIR}/migrations/des/common.sh"
             run_de_migration "${mig_src}" "${mig_tgt}"
             ;;
         *) die "Unknown migration type: ${mig_type}" ;;
@@ -367,7 +391,7 @@ start_iso_build() {
         fi
     fi
 
-    source "${BASE_DIR}/iso/tui.sh"
+    source "${BASHISMS_DIR}/iso/tui.sh"
 
     tui_iso_hub || return 1
 
@@ -383,7 +407,7 @@ start_iso_build() {
     boot_mode="$(state_get ISO_BOOT_MODE live)"
     iso_output_dir="$(state_get ISO_OUTPUT_DIR "${HOME}/ArtixForge-ISO")"
 
-    source "${ISO_DIR}/build.sh"
+    source "${BASHISMS_DIR}/iso/build.sh"
     build_artix_iso "${profile_name}" "${init}" "${kernel}" "${offline}" "${boot_mode}" "${iso_output_dir}"
 }
 
@@ -474,11 +498,11 @@ Attempt recovery and continue installation?"; then
 }
 
 start_system_migration() {
-    if [[ -f "${BASE_DIR}/migrations/migrate.sh" ]]; then
-        source "${BASE_DIR}/migrations/migrate.sh"
+    if [[ -f "${BASHISMS_DIR}/migrations/migrate.sh" ]]; then
+        source "${BASHISMS_DIR}/migrations/migrate.sh"
         tui_migration_menu
     else
-        tui_msg_quick "Not Available" "Migration module not found at migrations/migrate.sh"
+        tui_msg_quick "Not Available" "Migration module not found at bashisms/migrations/migrate.sh"
     fi
 }
 
