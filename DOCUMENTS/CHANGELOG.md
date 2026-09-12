@@ -1,5 +1,11 @@
 # Changelog
 
+## v9.5.0.5 (2026-09-12) — Artix Installer
+
+### Fixed
+- **Post-install stage failed with exit 127 inside the chroot** — `stage_post`'s heredoc sourced `state.sh`, `common.sh`, `tui/core.sh`, and the five post modules, but not the `bashisms/packages/` subsystem. Every refactored post module that calls `resolve_*` (`resolve_network_packages`, `resolve_de_packages`, `resolve_audio_packages`, `resolve_gpu_packages`, …) aborted with `command not found`. The chroot now sources the catalog, `resolve.sh`, and `install.sh` before the post modules.
+- **fd 19 leaked into every subprocess spawned under debug mode** — `xtrace_safe` unset `BASH_XTRACEFD` but left the debug trace file descriptor open, so LVM tools invoked inside it printed `File descriptor 19 (.../artix-debug.log) leaked on vgs invocation` on every call. `xtrace_safe` now closes fd 19 in the subshell when `BASH_XTRACEFD` was set. Oops.
+
 ## v9.5.0.4 (2026-09-12) — Artix Installer
 
 ### Fixed

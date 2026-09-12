@@ -187,7 +187,13 @@ check_disk_space() {
 }
 
 xtrace_safe() {
-    ( unset BASH_XTRACEFD; "$@" )
+    (
+        if [[ -n "${BASH_XTRACEFD:-}" ]]; then
+            unset BASH_XTRACEFD
+            exec 19>&- 2>/dev/null || true
+        fi
+        "$@"
+    )
 }
 
 retry_command() {

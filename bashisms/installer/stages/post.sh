@@ -43,6 +43,9 @@ cd /root/ArtixForge || exit 1
 source ./bashisms/state/state.sh
 source ./bashisms/common/common.sh
 source ./bashisms/tui/core.sh
+for f in ./bashisms/packages/catalog/*.sh; do source "$f"; done
+source ./bashisms/packages/resolve.sh
+source ./bashisms/packages/install.sh
 source ./bashisms/installer/install/services.sh
 source ./bashisms/installer/post/drivers.sh
 source ./bashisms/installer/post/networking.sh
