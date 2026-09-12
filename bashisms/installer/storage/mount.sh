@@ -17,6 +17,12 @@ _activate_storage() {
         log_info "Activating LVM volumes..."
         modprobe dm-mod 2>/dev/null || true
         xtrace_safe vgchange -ay || recoverable_error "Failed to activate LVM volume group"
+        udevadm settle
+        if [[ ! -b "/dev/mapper/${vg_name}-root" ]]; then
+            log_error "Root LV /dev/mapper/${vg_name}-root not found after LVM activation"
+            log_error "Active VGs: $(vgs --noheadings -o vg_name 2>/dev/null | tr -d ' ' | tr '\n' ' ')"
+            die "Root logical volume missing — check LVM state"
+        fi
         printf '%s\n' "/dev/mapper/${vg_name}-root"
         return 0
     fi

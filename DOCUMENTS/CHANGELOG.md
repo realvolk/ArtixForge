@@ -1,5 +1,12 @@
 # Changelog
 
+## v9.5.0.3 (2026-09-12) — Artix Installer
+
+### Fixed
+- **LVM root mount raced udev after `vgchange -ay`** — The mount path now runs `udevadm settle` after `vgchange -ay` and verifies the root LV exists with a `-b` block-device test before handing the path to `_mount_root`. On failure, it dumps the list of active VGs via `vgs` so the cause is diagnosable from the install log rather than requiring a `dmesg` read on the failed system.
+- **`_partition_wipe` deactivated only the VG named in state** — the wipe step ran `vgchange -an "$(state_get LVM_VG_NAME vg0)"`, which only deactivates the VG the current run expects to create. If the target disk carried a VG from a prior installation with a *different* name, that VG stayed active in the kernel device-mapper tables even after `sgdisk --zap-all` and `wipefs` destroyed its on-disk metadata.
+- **`EXTRAS_SAFETY_FILTER` declared in two places, one `readonly`** — the filter regex was assigned as `readonly` in `bashisms/packages/catalog/extras.sh` and again (without `readonly`) in `bashisms/tui/menus/extras.sh`. Shit.
+
 ## v9.5.0.2 (2026-09-12) — Artix Installer
 
 ### Fixed

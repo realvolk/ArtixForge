@@ -16,7 +16,7 @@ _partition_wipe() {
     swapoff -a 2>/dev/null || true
     umount -R /mnt 2>/dev/null || true
     zpool export -a 2>/dev/null || true
-    vgchange -an "$(state_get LVM_VG_NAME vg0)" 2>/dev/null || true
+    vgchange -an 2>/dev/null || true
     dmsetup remove_all 2>/dev/null || true
 
     log_info "Wiping existing signatures..."
