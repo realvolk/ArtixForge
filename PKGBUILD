@@ -1,7 +1,7 @@
 # Maintainer: Volk <realvolk@github.com>
 
 pkgname=artixforge
-pkgver=9.5.0.5
+pkgver=9.5.0.6
 pkgrel=1
 pkgdesc="Modular TUI installer framework for Artix Linux"
 arch=('any')
@@ -15,7 +15,7 @@ optdepends=(
 )
 makedepends=('git')
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/realvolk/ArtixForge/archive/refs/tags/v${pkgver}.tar.gz")
-sha256sums=('9d4a9c18783d659c546113bd7f5d1095ad6713bec11a00c2c4bd97ce00b84c0f')
+sha256sums=('5291e210064769e4ae8d08a4fcebff97f8fe6787f960daaa82c4328a7970244c')
 
 package() {
     install -dm755 "${pkgdir}/usr/share/artixforge"
