@@ -11,6 +11,10 @@
 
   Result: on BIOS with LUKS+`/boot` on the encrypted root, one GRUB prompt and a silent initramfs unlock. On UEFI with the ESP-mounted `/boot`, zero prompts. The original passphrase remains as keyslot 0.
 
+### Fixed
+- **BIOS partitioning hard-failed when swap was disabled** — `_partition_layout_bios` and `_partition_layout_uefi` contained `[[ "${use_swap}" == "yes" && -b "$(get_partition_name "${disk}" 2)" ]] || die 'swap partition not created'`. When `use_swap=no`, the `&&` short-circuits at the first false condition, the overall `[[ ... ]]` evaluates to false, and `|| die` fires. Any BIOS install without a swap partition aborted immediately after `_partition_layout_bios` returned. Fixed by wrapping the swap-partition check in a proper `if [[ "${use_swap}" == "yes" ]]` block in both layout functions. Found during LUKS keyfile testing on a minimal BIOS install.
+- **`xtrace_safe` leaked trace output to stderr** — the v9.5.0.5 fix that closed fd 19 inside the subshell also caused bash to fall back to stderr for its own trace, because `set -x` was still active when `exec 19>&-` ran. Under debug mode every `xtrace_safe` invocation emitted a `+ common.sh:193:xtrace_safe: exec` line to the terminal, mixed in with normal output. Fixed by running `set +x` before unsetting `BASH_XTRACEFD` and closing fd 19. In non-debug mode all three are no-ops; in debug mode the subshell starts quiet, cleans up the trace fd, and runs the command with no trace and no fd leak.
+
 ### Notes
 - **Historical observation, now untestable:** prior to v9.5.0.6, UEFI installs with `LUKS_KEYFILE=yes` booted with fewer LUKS unlock prompts than the layout should have produced. At the time, the keyfile feature was non-functional (no keyslot added, no `cryptkey=` in the kernel cmdline, no keyfile in the initramfs), so the extra prompt should have been present. The observation was interpreted as "the keyfile works on UEFI," which it did not; nothing was unlocking anything via the keyfile.
 
