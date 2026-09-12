@@ -22,7 +22,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Version-v9.5.0.6-blue?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/Stable-v9.1.1.4-3572a5?style=flat-square" alt="Stable Release">
+  <img src="https://img.shields.io/badge/Stable-v9.5.0.6-3572a5?style=flat-square" alt="Stable Release">
   <img src="https://img.shields.io/badge/Artix-[galaxy--gremlins]-blue?style=flat-square&logo=artixlinux" alt="Artix Galaxy-Gremlins">
   <img src="https://img.shields.io/badge/Language-Bash-4EAA25?style=flat-square&logo=gnu-bash" alt="Bash">
   <img src="https://img.shields.io/badge/TUI-gum-FFB6C1?style=flat-square" alt="gum">
