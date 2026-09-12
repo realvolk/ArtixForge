@@ -9,28 +9,29 @@ _activate_storage() {
     if [[ "${use_luks}" == "yes" && "${use_lvm}" == "yes" ]]; then
         log_info "Opening LUKS container for LVM..."
         cryptsetup close cryptlvm 2>/dev/null || true
-        printf '%s' "$(state_get LUKS_PASS)" | cryptsetup luksOpen "${root_part}" cryptlvm -
+        printf '%s' "$(state_get LUKS_PASS)" | cryptsetup luksOpen "${root_part}" cryptlvm - >&2
         [[ -b /dev/mapper/cryptlvm ]] || die "LUKS mapper /dev/mapper/cryptlvm not created"
     fi
 
     if [[ "${use_lvm}" == "yes" ]]; then
         log_info "Activating LVM volumes..."
         modprobe dm-mod 2>/dev/null || true
-        xtrace_safe vgchange -ay || recoverable_error "Failed to activate LVM volume group"
+        xtrace_safe vgchange -ay >&2 || recoverable_error "Failed to activate LVM volume group"
         udevadm settle
-        if [[ ! -b "/dev/mapper/${vg_name}-root" ]]; then
-            log_error "Root LV /dev/mapper/${vg_name}-root not found after LVM activation"
+        local lv_path="/dev/${vg_name}/root"
+        if [[ ! -b "${lv_path}" ]]; then
+            log_error "Root LV ${lv_path} not found after LVM activation"
             log_error "Active VGs: $(vgs --noheadings -o vg_name 2>/dev/null | tr -d ' ' | tr '\n' ' ')"
             die "Root logical volume missing — check LVM state"
         fi
-        printf '%s\n' "/dev/mapper/${vg_name}-root"
+        printf '%s\n' "${lv_path}"
         return 0
     fi
 
     if [[ "${use_luks}" == "yes" ]]; then
         log_info "Opening LUKS container..."
         cryptsetup close cryptroot 2>/dev/null || true
-        printf '%s' "$(state_get LUKS_PASS)" | cryptsetup luksOpen "${root_part}" cryptroot -
+        printf '%s' "$(state_get LUKS_PASS)" | cryptsetup luksOpen "${root_part}" cryptroot - >&2
         printf '%s\n' "/dev/mapper/cryptroot"
         return 0
     fi
