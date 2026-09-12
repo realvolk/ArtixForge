@@ -81,7 +81,8 @@ basestrap_kernel_cachyos() {
                 if ! grep -q '^Architecture =.*x86_64_v4' /etc/pacman.conf; then
                     sed -i '/^\[options\]/a Architecture = x86_64 x86_64_v4' /etc/pacman.conf
                 fi
-                cat <<'EOF' >> /etc/pacman.conf
+                if ! grep -q '^\[cachyos-v4\]' /etc/pacman.conf; then
+                    cat <<'EOF' >> /etc/pacman.conf
 [cachyos-v4]
 Include = /etc/pacman.d/cachyos-v4-mirrorlist
 
@@ -92,6 +93,7 @@ Include = /etc/pacman.d/cachyos-v4-mirrorlist
 Include = /etc/pacman.d/cachyos-v4-mirrorlist
 
 EOF
+                fi
             fi
         elif [[ "${cpu_level}" == "x86-64-v3" ]]; then
             local v3_mirrorlist_pkg
@@ -105,7 +107,8 @@ EOF
                 if ! grep -q '^Architecture =.*x86_64_v3' /etc/pacman.conf; then
                     sed -i '/^\[options\]/a Architecture = x86_64 x86_64_v3' /etc/pacman.conf
                 fi
-                cat <<'EOF' >> /etc/pacman.conf
+                if ! grep -q '^\[cachyos-v3\]' /etc/pacman.conf; then
+                    cat <<'EOF' >> /etc/pacman.conf
 [cachyos-v3]
 Include = /etc/pacman.d/cachyos-v3-mirrorlist
 
@@ -116,6 +119,7 @@ Include = /etc/pacman.d/cachyos-v3-mirrorlist
 Include = /etc/pacman.d/cachyos-v3-mirrorlist
 
 EOF
+                fi
             fi
         fi
 
@@ -143,13 +147,6 @@ basestrap_kernel_bazzite() {
         if ! pacman -Q artix-archlinux-support >/dev/null 2>&1; then
             pacman -S --noconfirm --needed artix-archlinux-support
         fi
-        local arch_mirrorlist='/etc/pacman.d/mirrorlist-arch'
-        if [[ ! -f "${arch_mirrorlist}" ]]; then
-            install -Dm644 /dev/null "${arch_mirrorlist}"
-            cat > "${arch_mirrorlist}" <<'MIRROR_EOF'
-Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
-MIRROR_EOF
-        fi
         if ! grep -q '^\[extra\]' /etc/pacman.conf; then
             cat <<'EOF' >> /etc/pacman.conf
 [extra]
@@ -162,6 +159,7 @@ EOF
 Include = /etc/pacman.d/mirrorlist-arch
 EOF
         fi
+        pacman -Sy --noconfirm || die "Failed to sync Arch databases for Bazzite"
         pkgs_ref+=(base-devel git mkinitcpio)
     fi
 }
@@ -187,6 +185,7 @@ basestrap_kernel_xanmod() {
 Include = /etc/pacman.d/chaotic-mirrorlist
 EOF
         fi
+        pacman -Sy --noconfirm || die "Failed to sync Chaotic-AUR databases"
         pkgs_ref+=("${KERNEL_PACKAGE}" "${KERNEL_HEADERS}")
     fi
 }

@@ -175,13 +175,6 @@ EOF
 
         log_info "Installing Arch repository support..."
         pacman -S --noconfirm --needed artix-archlinux-support
-        local arch_mirrorlist='/etc/pacman.d/mirrorlist-arch'
-        if [[ ! -f "${arch_mirrorlist}" ]]; then
-            install -Dm644 /dev/null "${arch_mirrorlist}"
-            cat > "${arch_mirrorlist}" <<'MIRROR_EOF'
-Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
-MIRROR_EOF
-        fi
 
         if ! grep -q '^\[extra\]' /etc/pacman.conf; then
             cat <<'EOF' >> /etc/pacman.conf
@@ -200,6 +193,10 @@ EOF
         if ! pacman -Sy --noconfirm; then
             die "Failed to sync package databases after adding Arch repos"
         fi
+
+        log_info "Populating archlinux keyring..."
+        pacman-key --populate archlinux || log_warn "Failed to populate archlinux keyring"
+
         log_info "Installing Arch Linux keyring..."
         pacman -S --noconfirm --needed archlinux-keyring
     fi
