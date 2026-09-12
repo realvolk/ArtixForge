@@ -168,6 +168,11 @@ EOF
     pacman-key --populate artix
 
     if [[ "$(state_get ENABLE_ARCH_REPOS no)" == 'yes' ]]; then
+        log_info "Synchronizing package databases..."
+        if ! pacman -Sy --noconfirm; then
+            die "Failed to sync package databases — check mirrorlist configuration"
+        fi
+
         log_info "Installing Arch repository support..."
         pacman -S --noconfirm --needed artix-archlinux-support
         local arch_mirrorlist='/etc/pacman.d/mirrorlist-arch'
@@ -190,9 +195,10 @@ EOF
 Include = /etc/pacman.d/mirrorlist-arch
 EOF
         fi
-        log_info "Synchronizing package databases..."
+
+        log_info "Re-synchronizing after adding Arch repos..."
         if ! pacman -Sy --noconfirm; then
-            die "Failed to sync package databases — check mirrorlist configuration"
+            die "Failed to sync package databases after adding Arch repos"
         fi
         log_info "Installing Arch Linux keyring..."
         pacman -S --noconfirm --needed archlinux-keyring

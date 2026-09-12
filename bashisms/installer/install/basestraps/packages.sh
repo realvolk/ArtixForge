@@ -49,7 +49,7 @@ basestrap_kernel_cachyos() {
         log_info "Setting up CachyOS repository..."
         pacman-key --recv-keys F3B607488DB35A47 --keyserver keyserver.ubuntu.com
         pacman-key --lsign-key F3B607488DB35A47
-        
+
         local cachyos_keyring cachyos_mirrorlist
         cachyos_keyring=$(curl -sL 'https://mirror.cachyos.org/repo/x86_64/cachyos/' | grep -oP 'cachyos-keyring-\d+.*?\.pkg\.tar\.zst' | sort -V | tail -1)
         cachyos_mirrorlist=$(curl -sL 'https://mirror.cachyos.org/repo/x86_64/cachyos/' | grep -oP 'cachyos-mirrorlist-\d+.*?\.pkg\.tar\.zst' | sort -V | tail -1)
@@ -125,6 +125,10 @@ EOF
 Include = /etc/pacman.d/cachyos-mirrorlist
 EOF
         fi
+
+        log_info "Synchronizing CachyOS databases..."
+        pacman -Sy --noconfirm || die "Failed to sync CachyOS databases"
+
         pkgs_ref+=("${kernel}" "${kernel}-headers")
     fi
 }
