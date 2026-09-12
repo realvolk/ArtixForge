@@ -20,7 +20,6 @@ bootloader_install_grub() {
     fi
 
     local -a grub_extra_args=()
-    grub_extra_args+=( --removable )
 
     local -a grub_modules=( part_gpt part_msdos fat ext2 )
     local -a grub_preload=()
@@ -43,10 +42,16 @@ bootloader_install_grub() {
         echo "GRUB_PRELOAD_MODULES=\"${grub_preload[*]}\"" >> /mnt/etc/default/grub
     fi
 
-    xtrace_safe artix-chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ARTIX "${grub_extra_args[@]}" || recoverable_error 'grub-install failed – updating ArtixForge may help'
-    if [[ -n "${root_param}" ]]; then
-        artix-chroot /mnt sed -i "s|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"${root_param}\"|" /etc/default/grub
+    xtrace_safe artix-chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=ARTIX "${grub_extra_args[@]}" \
+        || recoverable_error 'grub-install failed – updating ArtixForge may help'
+
+    if ! artix-chroot /mnt efibootmgr -v 2>/dev/null | grep -qi 'ARTIX'; then
+        log_warn "No EFI boot entry created by standard install — falling back to removable-media path"
+        xtrace_safe artix-chroot /mnt grub-install --target=x86_64-efi --efi-directory=/boot/efi \
+            --bootloader-id=ARTIX --removable "${grub_extra_args[@]}" \
+            || die "Both standard and removable GRUB installs failed"
     fi
+
     log_info "Generating GRUB configuration..."
     xtrace_safe artix-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg || recoverable_error 'grub-mkconfig failed – updating ArtixForge may fix this'
 }

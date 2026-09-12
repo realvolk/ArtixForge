@@ -145,11 +145,10 @@ get_luks_raw_uuid() {
 }
 
 configure_bootloader() {
-    local bootloader kernel fs_type root_param=''
+    local bootloader kernel fs_type
     bootloader="$(state_get BOOTLOADER grub)"
     kernel="$(state_get KERNEL_CHOICE linux)"
     fs_type="$(state_get FS_TYPE)"
-    [[ "${fs_type}" == 'zfs' ]] && root_param='root=ZFS=zroot/root'
 
     log_info "Generating initramfs..."
     artix-chroot /mnt mkinitcpio -P || true
@@ -248,7 +247,7 @@ configure_bootloader() {
     esp_part="$(lsblk -no PARTN "${esp_source}" | head -n1)"
     [[ -n "${esp_part}" ]] || die 'failed to detect EFI partition number'
 
-    export fs_type crypt_uuid mapper_name root_uuid root_param root_device
+    export fs_type crypt_uuid mapper_name root_uuid root_device
     export esp_source esp_mount esp_disk esp_part
 
     if [[ "$(state_get GENERATE_UKI no)" == "yes" ]]; then
