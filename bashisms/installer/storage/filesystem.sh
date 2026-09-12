@@ -45,6 +45,25 @@ _mkfs_target() {
     esac
 }
 
+_create_luks_keyfile() {
+    local device="$1"
+    local luks_pass
+    luks_pass="$(state_get LUKS_PASS)"
+    local keyfile="/crypto_keyfile.bin"
+
+    log_info "Generating LUKS keyfile..."
+    dd if=/dev/urandom of="${keyfile}" bs=512 count=8 status=none
+    chmod 000 "${keyfile}"
+
+    log_info "Adding keyfile as LUKS keyslot..."
+    printf '%s' "${luks_pass}" | cryptsetup luksAddKey --key-file - "${device}" "${keyfile}" \
+        || die "Failed to add LUKS keyfile to ${device}"
+
+    state_set LUKS_KEYFILE_PATH "${keyfile}"
+    log_info "Keyfile registered on ${device}"
+}
+
+
 _setup_luks_container() {
     local target="$1" mapper="$2"
     cryptsetup close "${mapper}" 2>/dev/null || true
@@ -53,6 +72,10 @@ _setup_luks_container() {
     luks_pass="$(state_get LUKS_PASS)"
     printf '%s' "${luks_pass}" | cryptsetup luksFormat --type luks2 --pbkdf pbkdf2 "${target}" -
     printf '%s' "${luks_pass}" | cryptsetup luksOpen "${target}" "${mapper}" -
+
+    if [[ "$(state_get LUKS_KEYFILE no)" == "yes" ]]; then
+        _create_luks_keyfile "${target}"
+    fi
 }
 
 _format_esp() {

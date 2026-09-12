@@ -22,6 +22,9 @@ generate_root_cmdline() {
     else
         if [[ "$(state_get USE_LUKS no)" == "yes" ]]; then
             cmdline+="cryptdevice=UUID=${crypt_uuid}:${mapper_name} "
+            if [[ "$(state_get LUKS_KEYFILE no)" == "yes" ]]; then
+                cmdline+="cryptkey=rootfs:/crypto_keyfile.bin "
+            fi
         fi
         if [[ "$(state_get USE_LVM no)" == "yes" ]]; then
             local vg_name
@@ -142,11 +145,10 @@ get_luks_raw_uuid() {
 }
 
 configure_bootloader() {
-    local bootloader kernel fs_type root_param=''
+    local bootloader kernel fs_type
     bootloader="$(state_get BOOTLOADER grub)"
     kernel="$(state_get KERNEL_CHOICE linux)"
     fs_type="$(state_get FS_TYPE)"
-    [[ "${fs_type}" == 'zfs' ]] && root_param='root=ZFS=zroot/root'
 
     log_info "Generating initramfs..."
     artix-chroot /mnt mkinitcpio -P || true
@@ -156,16 +158,18 @@ configure_bootloader() {
     log_info "Initramfs generation complete"
 
     if [[ "$(state_get LUKS_KEYFILE no)" == "yes" ]]; then
-        local keyfile_path="$(state_get LUKS_KEYFILE_PATH /crypto_keyfile.bin)"
-        if [[ -f "${keyfile_path}" ]]; then
-            log_info "Embedding LUKS keyfile in initramfs..."
-            cp "${keyfile_path}" /mnt/crypto_keyfile.bin
-            chmod 000 /mnt/crypto_keyfile.bin
-            if ! grep -q '/crypto_keyfile.bin' /mnt/etc/mkinitcpio.conf; then
-                sed -i "s|^FILES=(|FILES=(/crypto_keyfile.bin |" /mnt/etc/mkinitcpio.conf
-            fi
-            artix-chroot /mnt mkinitcpio -P || true
+        local keyfile_path
+        keyfile_path="$(state_get LUKS_KEYFILE_PATH /crypto_keyfile.bin)"
+        if [[ ! -f "${keyfile_path}" ]]; then
+            die "LUKS_KEYFILE=yes but ${keyfile_path} does not exist"
         fi
+        log_info "Embedding LUKS keyfile in initramfs..."
+        cp "${keyfile_path}" /mnt/crypto_keyfile.bin
+        chmod 000 /mnt/crypto_keyfile.bin
+        if ! grep -q '/crypto_keyfile.bin' /mnt/etc/mkinitcpio.conf; then
+            sed -i "s|^FILES=(|FILES=(/crypto_keyfile.bin |" /mnt/etc/mkinitcpio.conf
+        fi
+        artix-chroot /mnt mkinitcpio -P || die "Failed to regenerate initramfs with keyfile"
     fi
 
     local root_device
@@ -243,7 +247,7 @@ configure_bootloader() {
     esp_part="$(lsblk -no PARTN "${esp_source}" | head -n1)"
     [[ -n "${esp_part}" ]] || die 'failed to detect EFI partition number'
 
-    export fs_type crypt_uuid mapper_name root_uuid root_param root_device
+    export fs_type crypt_uuid mapper_name root_uuid root_device
     export esp_source esp_mount esp_disk esp_part
 
     if [[ "$(state_get GENERATE_UKI no)" == "yes" ]]; then
@@ -281,7 +285,7 @@ configure_bootloader() {
         *)       die "unsupported bootloader: ${bootloader}" ;;
     esac
 
-if [[ "$(state_get GENERATE_UKI no)" == "yes" ]]; then
+    if [[ "$(state_get GENERATE_UKI no)" == "yes" ]]; then
         local uki_file="/mnt/boot/efi/EFI/Linux/artix-${uki_kver}.efi"
         if [[ -f "${uki_file}" ]]; then
             local target_esp_guid
