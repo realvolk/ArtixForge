@@ -1,5 +1,13 @@
 # Changelog
 
+## v9.5.0.4 (2026-09-12) — Artix Installer
+
+### Fixed
+- **Kernel fallback check looked at the host's pacman database instead of the target's** — the post-basestrap check in `install_base_system` ran `pacman -Q "${KERNEL_PACKAGE}"` without `--root /mnt`. On every CachyOS/XanMod/Bazzite install the check found nothing in the live ISO's database, printed `Kernel <name> failed to install. Falling back to linux.`, overwrote `KERNEL_CHOICE`, and installed `linux` alongside the kernel that had actually installed correctly. The check now uses `pacman --root /mnt -Q`, sees the package in the target's database, and leaves `KERNEL_CHOICE` alone.
+
+### Fixed (not)
+- **`database already registered` spam** — who cares lol
+
 ## v9.5.0.3 (2026-09-12) — Artix Installer
 
 ### Fixed
