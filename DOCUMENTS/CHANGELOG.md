@@ -1,5 +1,20 @@
 # Changelog
 
+## v9.5.0.1 (2026-09-12) — Artix Installer
+
+### Fixed
+- **State validation rejected valid microcode selections** — `tui_select_microcode` set `MICROCODE_OVERRIDE` to the package name (`intel-ucode`, `amd-ucode`) instead of the short form (`intel`, `amd`). `STATE_VALIDATORS[MICROCODE_OVERRIDE]` accepts `^(auto|intel|amd|none)$`, so the installer aborted at state validation with "MICROCODE_OVERRIDE 'intel-ucode' is not supported" before the pipeline ever started. The TUI now sets the short form, and the manual selection menu offers `auto` (the state default) as a first option, with a fallback to `auto` rather than `amd-ucode` on menu failure.
+- **`EXTRAS_SAFETY_FILTER` re-declaration crashed the extras menu** — the filter was declared `readonly` in `bashisms/tui/menus/extras.sh`, which produced `line 4: EXTRAS_SAFETY_FILTER: readonly variable` when the file was sourced twice. Dropped `readonly`; the variable is now a plain assignment. The double-source itself is untouched for now (see Notes).
+- **`POWERUSER_DIR` pointed at the pre-`bashisms/` path** — `bashisms/tui/menus/poweruser.sh` set `POWERUSER_DIR="${BASE_DIR}/poweruser"`, but the poweruser tree moved to `bashisms/poweruser/` in v9.4.0.7. Every source line below it (`lib/flags.bash`, `lib/recipe.bash`, `tui/menu_poweruser.sh`) silently failed. Fixed to `${BASE_DIR}/bashisms/poweruser`.
+- **Duplicate "User Shell" prompt** — `tui_select_shell` (system default shell) and `tui_edit_user_dialog` (per-user shell) both used the menu title `"User Shell"` with the same three options. The reporter reasonably read this as the installer asking twice. The system prompt now reads `"System Shell"` and its subtitle says "users can override".
+- **State validation error message rendered `\n` literally** — `tui_msg` passes its body to `gum format`, which renders markdown, not bash escape sequences. The wrapper string in `run_install_pipeline` used `"...errors:\n\n${lint_errors}\n\nCannot proceed."`, so the user saw the literal `\n` characters between the error text and the "Cannot proceed" line. The wrapper now uses `printf` so real newlines reach `gum format`. (`lint_errors` already contained real newlines from `lint_state`'s `$'\n'` appends — only the surrounding text was wrong.)
+
+### Changed
+- **`LVM_VG_NAME` is now a first-class state key** — see the v9.5.0.0 entry for the full description; the changelog entry was accidentally omitted from that release. `tui_select_luks` prompts for the VG name when LVM is enabled, defaulting to `vg0`. `generate_root_cmdline` reads it so every bootloader backend respects a custom VG name. `validate_system` checks for any LVM volume group rather than grepping for the literal `vg0`. The key is registered in `STATE_KEYS` and `STATE_DEFAULTS`, and is deliberately absent from `STATE_KEYS_CHROOT` (post-install modules don't read it) and `STATE_KEYS_PROFILE` (VG names are instance-specific).
+
+### Notes
+- The `linux-cachyos-bmq` kernel install failure reported in the same issue is also unaddressed. Fallback to `linux` fired correctly; whether the CachyOS repo setup or the specific package availability is at fault needs the install log.
+
 ## v9.5.0.0 (2026-09-12) — Artix Installer
 
 ### Added

@@ -226,24 +226,24 @@ tui_select_keyboard_layout() {
 
 tui_select_shell() {
     local s
-    s=$(tui_menu "User Shell" "Select default shell:" "bash" "zsh" "fish") || return 1
+    s=$(tui_menu "System Shell" "Select system default shell (users can override):" "bash" "zsh" "fish") || return 1
     state_set USER_SHELL "${s}"
 }
 
 tui_select_microcode() {
-    local detected='amd-ucode'
+    local detected='amd'
     if [[ "$(< /proc/cpuinfo)" == *GenuineIntel* ]]; then
-        detected='intel-ucode'
+        detected='intel'
     fi
 
-    if tui_yesno "CPU Microcode" "Detected ${detected}. Use automatically?"; then
+    if tui_yesno "CPU Microcode" "Detected ${detected}-ucode. Use automatically?"; then
         state_set MICROCODE_OVERRIDE "${detected}"
         return 0
     fi
     local u
-    if ! u=$(tui_menu "CPU Microcode" "Select microcode:" "amd-ucode" "intel-ucode" "none" 2>/dev/null); then
-        log_warn "Microcode selection menu failed — defaulting to amd-ucode"
-        u="amd-ucode"
+    if ! u=$(tui_menu "CPU Microcode" "Select microcode:" "auto" "intel" "amd" "none" 2>/dev/null); then
+        log_warn "Microcode selection menu failed — defaulting to auto"
+        u="auto"
     fi
     state_set MICROCODE_OVERRIDE "${u}"
 }

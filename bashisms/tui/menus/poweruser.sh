@@ -4,7 +4,7 @@ set -Eeuo pipefail
 tui_select_poweruser() {
     [[ "$(state_get POWER_USER no)" == "yes" ]] || return 0
 
-    POWERUSER_DIR="${BASE_DIR}/poweruser"
+    POWERUSER_DIR="${BASE_DIR}/bashisms/poweruser"
     source "${POWERUSER_DIR}/lib/flags.bash"
     source "${POWERUSER_DIR}/lib/recipe.bash"
     source "${POWERUSER_DIR}/tui/menu_poweruser.sh"

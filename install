@@ -332,7 +332,7 @@ run_install_pipeline() {
     local lint_errors
     lint_errors=$(lint_state 2>/dev/null || true)
     if [[ -n "${lint_errors}" ]]; then
-        tui_msg "State Validation Failed" "The state file has errors:\n\n${lint_errors}\n\nCannot proceed."
+        tui_msg "State Validation Failed" "$(printf 'The state file has errors:\n\n%s\n\nCannot proceed.' "${lint_errors}")"
         return 1
     fi
     
