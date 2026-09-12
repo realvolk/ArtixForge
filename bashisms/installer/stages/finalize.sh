@@ -21,8 +21,8 @@ _finalize_unmount() {
 _finalize_validate() {
     local issues=0
 
-    source "${SCRIPT_DIR}/recovery/detect.sh" 2>/dev/null || true
-    source "${SCRIPT_DIR}/recovery/core.sh" 2>/dev/null || true
+    source "${BASHISMS_DIR}/recovery/detect.sh" 2>/dev/null || true
+    source "${BASHISMS_DIR}/recovery/core.sh" 2>/dev/null || true
 
     detect_boot_health 2>/dev/null || true
     detect_pacman_health 2>/dev/null || true
@@ -48,7 +48,7 @@ _finalize_validate() {
 
     if [[ ${issues} -eq 1 ]]; then
         if tui_yesno "Post-Install Issues" "Some issues were detected with the installation.\n\nBoot: ${boot_issues}\nPacman: ${pacman_issues}\nFSTAB: ${fstab_issues}\n\nAttempt automatic repair?"; then
-            source "${SCRIPT_DIR}/recovery/repair.sh" 2>/dev/null || true
+            source "${BASHISMS_DIR}/recovery/repair.sh" 2>/dev/null || true
             repair_detected_issues 2>/dev/null || log_warn "Automatic repair could not fix all issues"
         fi
     fi
