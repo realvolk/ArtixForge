@@ -1,5 +1,12 @@
 # Changelog
 
+## v9.5.0.7 (2026-09-17) — Artix Installer
+
+### Fixed
+- **Build ISO mode crashed on every invocation** — `install` defined its own `start_iso_build` that called `tui_iso_hub`, a function removed when the ISO TUI was consolidated into `bashisms/iso/tui.sh`. The duplicate shadowed the working version.
+- **Advanced-features password gate rejected every password** — `_verify_root_password` hashed the entered password with `openssl passwd -6`, which produces a random-salt SHA-512 hash. `/etc/shadow` on Artix uses yescrypt (`$y$`), which OpenSSL cannot reproduce. Now uses `perl crypt()` via the system `libcrypt`.
+- **Wip iso-profiles were never fetched when the packaged profiles existed** — `iso_profiles_ensure` returned early whenever `/usr/share/artools/iso-profiles/common` and `base` existed, which is always the case when the `iso-profiles` package is installed. The wip branch was dead code. Reworked so wip wins: fetched on demand into `/var/cache/artixforge/iso-profiles-wip/`, with the packaged directory as fallback.
+
 ## v9.5.0.6 (2026-09-12) — Artix Installer
 
 ### Fixed

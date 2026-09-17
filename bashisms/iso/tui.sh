@@ -33,29 +33,106 @@ iso_target_state_init() {
     : > "${ISO_TARGET_STATE_FILE}"
 }
 
-tui_iso_live_config() {
-    local base_profile
-    if iso_profiles_available; then
-        local -a profiles=()
-        mapfile -t profiles < <(iso_profiles_list)
-        if [[ "${#profiles[@]}" -gt 0 ]]; then
-            base_profile=$(tui_menu "Base Profile" "Select an upstream iso-profiles base:" "${profiles[@]}") || return 1
+lint_iso_state() {
+    local errors=""
+
+    local init
+    init="$(state_get INIT openrc)"
+    case "${init}" in
+        openrc|runit|dinit|s6) ;;
+        *) errors+="INIT '${init}' is not supported"$'\n' ;;
+    esac
+
+    local kernel
+    kernel="$(state_get KERNEL_CHOICE linux)"
+    local valid_kernel=0
+    local k
+    for k in "${ISO_KERNEL_CHOICES[@]}"; do
+        [[ "${kernel}" == "${k}" ]] && valid_kernel=1
+    done
+    [[ ${valid_kernel} -eq 1 ]] || errors+="KERNEL_CHOICE '${kernel}' is not in ISO_KERNEL_CHOICES"$'\n'
+
+    local wm_de
+    wm_de="$(state_get WM_DE none)"
+    if [[ "${wm_de}" != "none" ]]; then
+        local x_stack
+        x_stack="$(state_get X_STACK xorg)"
+        if [[ "${wm_de}" =~ ^(hyprland|niri|sway|mango|cosmic)$ ]] && [[ "${x_stack}" == "xorg" ]]; then
+            errors+="Wayland compositor '${wm_de}' with X_STACK=xorg — likely misconfigured"$'\n'
         fi
     fi
-    if [[ -z "${base_profile:-}" ]]; then
-        tui_select_desktop
-        base_profile="$(resolve_de_profile "$(state_get WM_DE none)")"
-    else
-        tui_select_desktop
-    fi
-    state_set ISO_BASE_PROFILE "${base_profile}"
 
+    local base_profile
+    base_profile="$(state_get ISO_BASE_PROFILE "")"
+    if [[ -n "${base_profile}" ]]; then
+        if ! iso_profiles_available; then
+            errors+="ISO_BASE_PROFILE '${base_profile}' requested but iso-profiles unavailable"$'\n'
+        fi
+    fi
+
+    if [[ -n "${errors}" ]]; then
+        printf '%s' "${errors}"
+        return 1
+    fi
+    return 0
+}
+
+tui_iso_live_config() {
+    iso_profiles_ensure || true
+
+    local build_mode
+    build_mode=$(tui_menu "ISO Base" \
+        "How do you want to build the live system?" \
+        "Upstream profile – extend an existing Artix profile (recommended for most users)" \
+        "Custom – build from scratch, use my DE and config choices only") || return 1
+
+    tui_select_init
+    tui_select_desktop
     tui_select_display_manager
     tui_select_xstack
-    tui_select_init
+
+    case "${build_mode}" in
+        "Upstream"*)
+            local wm_de suggested
+            wm_de="$(state_get WM_DE none)"
+            suggested="$(resolve_de_profile "${wm_de}")"
+
+            local base_profile="${suggested}"
+            if iso_profiles_available; then
+                local -a profiles=()
+                mapfile -t profiles < <(iso_profiles_list)
+                if [[ "${#profiles[@]}" -gt 0 ]]; then
+                    local -a profile_menu=()
+                    local p
+                    for p in "${profiles[@]}"; do
+                        if [[ "${p}" == "${suggested}" ]]; then
+                            profile_menu+=("${p} (recommended for ${wm_de})")
+                        else
+                            profile_menu+=("${p}")
+                        fi
+                    done
+                    local choice
+                    choice=$(tui_menu "Base Profile" \
+                        "Selected DE: ${wm_de}
+Recommended upstream base: ${suggested}" \
+                        "${profile_menu[@]}") || return 1
+                    case "${choice}" in
+                        *"(recommended for "*) base_profile="${suggested}" ;;
+                        *) base_profile="${choice}" ;;
+                    esac
+                fi
+            fi
+            state_set ISO_BASE_PROFILE "${base_profile}"
+            ;;
+        "Custom"*)
+            state_set ISO_BASE_PROFILE ""
+            ;;
+    esac
+
     local iso_kernel
     iso_kernel=$(tui_menu "Kernel" "Select kernel for the live ISO:" "${ISO_KERNEL_CHOICES[@]}") || return 1
     state_set KERNEL_CHOICE "${iso_kernel}"
+
     tui_select_network_stack
     tui_select_audio_stack
     tui_select_extras
@@ -78,7 +155,15 @@ tui_iso_live_config() {
 }
 
 tui_iso_target_config() {
-    tui_msg_quick "Offline Configuration" "Configure the system you will later install.\nThese packages will be bundled for offline installation."
+    tui_msg "Offline Target Configuration" \
+"Now configure the TARGET system — the system that will be
+installed from this ISO without internet access.
+
+The packages selected here will be bundled onto the ISO so that
+offline installation works.
+
+This is separate from the LIVE environment configuration you
+just completed. The live environment stays as you set it."
 
     cp /tmp/artix-installer/state.conf /tmp/artix-installer/live-state-temp.conf 2>/dev/null || true
 
@@ -127,6 +212,40 @@ start_iso_build() {
         else
             die "artools is required for ISO generation"
         fi
+    fi
+
+    iso_profiles_ensure || true
+
+    local iso_stage_file="/tmp/artix-installer/iso-build-stage.conf"
+    if [[ -f "${iso_stage_file}" ]]; then
+        local saved_stage resume_summary
+        saved_stage="$(cat "${iso_stage_file}" 2>/dev/null || echo "init")"
+
+        resume_summary=""
+        resume_summary+="An ISO build is in progress (stage: ${saved_stage})."$'\n\n'
+        resume_summary+="- **Init:** $(state_get INIT openrc)"$'\n'
+        resume_summary+="- **Kernel:** $(state_get KERNEL_CHOICE linux)"$'\n'
+        resume_summary+="- **Base profile:** $(state_get ISO_BASE_PROFILE 'base')"$'\n'
+        resume_summary+="- **Boot mode:** $(state_get ISO_BOOT_MODE live)"$'\n'
+        resume_summary+="- **Offline:** $(state_get ALLOW_OFFLINE no)"$'\n'
+        resume_summary+="- **Output:** $(state_get ISO_OUTPUT_DIR "${HOME}/ArtixForge-ISO")"$'\n\n'
+        resume_summary+="Resume with these settings?"
+
+        if tui_yesno "Resume ISO Build" "${resume_summary}"; then
+            source "${ISO_DIR}/build.sh"
+            build_artix_iso \
+                "$(state_get QUICK_PROFILE Custom)" \
+                "$(state_get INIT openrc)" \
+                "$(state_get KERNEL_CHOICE linux)" \
+                "$(state_get ALLOW_OFFLINE no)" \
+                "$(state_get ISO_BOOT_MODE live)" \
+                "$(state_get ISO_OUTPUT_DIR "${HOME}/ArtixForge-ISO")" \
+                "$(state_get ISO_BASE_PROFILE '')"
+            return $?
+        fi
+
+        rm -f "${iso_stage_file}"
+        log_info "Starting fresh ISO build"
     fi
 
     local boot_mode
@@ -182,17 +301,13 @@ start_iso_build() {
         state_set ISO_BASE_PROFILE "base"
     fi
 
-    if tui_yesno "Additional Packages" "Would you like to add extra packages to the ISO?"; then
-        local extra_pkgs
-        extra_pkgs=$(tui_checklist "Extra Packages" "Select additional packages to include:" \
-            "git" "flatpak" "fastfetch" "firewalld" "bluez" "zram-tools" \
-            "fzf" "zoxide" "starship" "eza" "btop" "htop" "nvtop" "tmux" \
-            "neovim" "micro" "helix" "firefox" "chromium" "qutebrowser" \
-            "ranger" "lf" "nnn" "thunar" "alacritty" "kitty" "foot" "mpv" "feh") || true
-        extra_pkgs=$(echo "${extra_pkgs}" | tr '\n' ' ')
-        if [[ -n "${extra_pkgs}" ]]; then
-            state_set ISO_EXTRA_PACKAGES "${extra_pkgs}"
-        fi
+    state_set ISO_BOOT_MODE "${boot_mode}"
+
+    local lint_errors
+    lint_errors=$(lint_iso_state 2>/dev/null || true)
+    if [[ -n "${lint_errors}" ]]; then
+        tui_msg "ISO Configuration Invalid" "$(printf 'The ISO configuration has errors:\n\n%s\n\nCannot proceed.' "${lint_errors}")"
+        return 1
     fi
 
     local iso_output_dir
@@ -204,25 +319,43 @@ start_iso_build() {
     profile_name="$(state_get QUICK_PROFILE "Custom")"
     init="$(state_get INIT "openrc")"
     kernel="$(state_get KERNEL_CHOICE "linux")"
-    base_profile="$(state_get ISO_BASE_PROFILE "base")"
+    base_profile="$(state_get ISO_BASE_PROFILE "")"
 
     offline="no"
     if tui_yesno "Offline ISO" "Include all packages for offline installation?"; then
         offline="yes"
+        state_set ALLOW_OFFLINE "yes"
         if [[ "${boot_mode}" == "live" ]]; then
             tui_iso_target_config
         else
             log_info "Installer ISO offline mode: using existing package list (no target configuration needed)"
         fi
+    else
+        state_set ALLOW_OFFLINE "no"
     fi
 
     if tui_yesno "Additional Packages" "Would you like to add extra packages to the ISO?"; then
-        local extra_pkgs
-        extra_pkgs=$(tui_checklist "Extra Packages" "Select additional packages to include:" "${ISO_EXTRA_PACKAGES_CHOICES[@]}") || true
-        extra_pkgs=$(echo "${extra_pkgs}" | tr '\n' ' ')
-        if [[ -n "${extra_pkgs}" ]]; then
-            state_set ISO_EXTRA_PACKAGES "${extra_pkgs}"
+        tui_select_extras
+        local iso_extras existing
+        iso_extras="$(state_get EXTRAS '')"
+        existing="$(state_get ISO_EXTRA_PACKAGES '')"
+        if [[ -n "${iso_extras}" ]]; then
+            state_set ISO_EXTRA_PACKAGES "${existing} ${iso_extras}"
         fi
+    fi
+
+    local summary=""
+    summary+="Ready to build the ISO."$'\n\n'
+    summary+="- **Init:** ${init}"$'\n'
+    summary+="- **Kernel:** ${kernel}"$'\n'
+    summary+="- **Base profile:** ${base_profile:-custom}"$'\n'
+    summary+="- **Boot mode:** ${boot_mode}"$'\n'
+    summary+="- **Offline:** ${offline}"$'\n'
+    summary+="- **Output:** ${iso_output_dir}"$'\n\n'
+    summary+="Proceed?"
+
+    if ! tui_yesno "Start Build" "${summary}"; then
+        return 1
     fi
 
     source "${ISO_DIR}/build.sh"

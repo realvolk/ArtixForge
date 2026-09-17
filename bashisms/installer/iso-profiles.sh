@@ -2,15 +2,27 @@
 set -Eeuo pipefail
 
 readonly ISO_PROFILES_ROOT="/usr/share/artools/iso-profiles"
+readonly ISO_PROFILES_WIP_ROOT="/var/cache/artixforge/iso-profiles-wip"
 readonly ISO_PROFILES_ARCHIVE="https://gitea.artixlinux.org/artix/iso-profiles/archive/wip.tar.gz"
+readonly ISO_PROFILES_WIP_MAX_AGE=$((7 * 24 * 3600))
+
+ISO_PROFILES_ACTIVE="${ISO_PROFILES_ROOT}"
+
+_iso_profiles_wip_cached() {
+    [[ -d "${ISO_PROFILES_WIP_ROOT}/common" && -d "${ISO_PROFILES_WIP_ROOT}/base" ]]
+}
+
+_iso_profiles_packaged_available() {
+    [[ -d "${ISO_PROFILES_ROOT}/common" && -d "${ISO_PROFILES_ROOT}/base" ]]
+}
 
 iso_profiles_available() {
-    [[ -d "${ISO_PROFILES_ROOT}/common" && -d "${ISO_PROFILES_ROOT}/base" ]]
+    [[ -d "${ISO_PROFILES_ACTIVE}/common" && -d "${ISO_PROFILES_ACTIVE}/base" ]]
 }
 
 iso_profiles_list() {
     local d name
-    for d in "${ISO_PROFILES_ROOT}"/*/; do
+    for d in "${ISO_PROFILES_ACTIVE}"/*/; do
         [[ -d "$d" ]] || continue
         name="$(basename "$d")"
         case "$name" in
@@ -21,73 +33,89 @@ iso_profiles_list() {
     done
 }
 
-iso_profiles_ensure() {
-    iso_profiles_available && return 0
-
-    log_info "Fetching upstream iso-profiles (wip)..."
-
+_iso_profiles_fetch_wip() {
     local tarball="/tmp/iso-profiles-wip.tar.gz"
-    local extract_dir="/tmp/iso-profiles-wip"
+    local extract_dir="/tmp/iso-profiles-wip.$$"
 
     rm -rf "${tarball}" "${extract_dir}"
     mkdir -p "${extract_dir}"
 
     if ! curl -fsSL --max-time 60 "${ISO_PROFILES_ARCHIVE}" -o "${tarball}"; then
-        log_warn "Failed to fetch iso-profiles from upstream"
-        return 1
-    fi
-
-    if ! tar -xzf "${tarball}" -C "${extract_dir}" --strip-components=1; then
-        log_warn "Failed to extract iso-profiles tarball"
         rm -rf "${tarball}" "${extract_dir}"
         return 1
     fi
 
-    mkdir -p "$(dirname "${ISO_PROFILES_ROOT}")"
-    rm -rf "${ISO_PROFILES_ROOT}"
-    mv "${extract_dir}" "${ISO_PROFILES_ROOT}"
-    rm -f "${tarball}"
+    if ! tar -xzf "${tarball}" -C "${extract_dir}" --strip-components=1; then
+        rm -rf "${tarball}" "${extract_dir}"
+        return 1
+    fi
 
-    log_info "iso-profiles (wip) installed to ${ISO_PROFILES_ROOT}"
-    iso_profiles_available
+    if [[ ! -d "${extract_dir}/common" || ! -d "${extract_dir}/base" ]]; then
+        log_warn "wip archive extracted but common/ or base/ missing"
+        rm -rf "${tarball}" "${extract_dir}"
+        return 1
+    fi
+
+    mkdir -p "$(dirname "${ISO_PROFILES_WIP_ROOT}")"
+    rm -rf "${ISO_PROFILES_WIP_ROOT}"
+    mv "${extract_dir}" "${ISO_PROFILES_WIP_ROOT}"
+    rm -f "${tarball}"
+    return 0
+}
+
+iso_profiles_ensure() {
+    if _iso_profiles_wip_cached; then
+        ISO_PROFILES_ACTIVE="${ISO_PROFILES_WIP_ROOT}"
+        log_info "Using cached wip iso-profiles (${ISO_PROFILES_WIP_ROOT})"
+        return 0
+    fi
+
+    log_info "Fetching upstream iso-profiles (wip)..."
+    if _iso_profiles_fetch_wip; then
+        ISO_PROFILES_ACTIVE="${ISO_PROFILES_WIP_ROOT}"
+        log_info "iso-profiles (wip) cached at ${ISO_PROFILES_WIP_ROOT}"
+        return 0
+    fi
+
+    log_warn "Failed to fetch wip — falling back to packaged iso-profiles"
+    if _iso_profiles_packaged_available; then
+        ISO_PROFILES_ACTIVE="${ISO_PROFILES_ROOT}"
+        return 0
+    fi
+
+    log_error "No iso-profiles available (neither wip nor packaged)"
+    return 1
 }
 
 iso_profiles_validate() {
-    iso_profiles_available || {
-        log_warn "iso-profiles not available — skipping staleness check"
-        return 1
-    }
-
-    local tarball="/tmp/iso-profiles-validate.tar.gz"
-    if ! curl -fsSL --max-time 15 "${ISO_PROFILES_ARCHIVE}" -o "${tarball}" 2>/dev/null; then
-        log_info "iso-profiles staleness check skipped (upstream unreachable)"
-        rm -f "${tarball}"
+    if ! _iso_profiles_wip_cached; then
+        log_info "wip cache missing — will be fetched on demand"
         return 0
     fi
 
-    local -a stale=()
-    local rel local_hash remote_hash
+    local age
+    age=$(( $(date +%s) - $(stat -c %Y "${ISO_PROFILES_WIP_ROOT}" 2>/dev/null || echo 0) ))
 
-    for rel in common/common.yaml base/profile.yaml; do
-        [[ -f "${ISO_PROFILES_ROOT}/${rel}" ]] || continue
-
-        remote_hash="$(tar -xzOf "${tarball}" --wildcards "*/${rel}" 2>/dev/null | sha256sum | awk '{print $1}')"
-        [[ -n "${remote_hash}" ]] || continue
-
-        local_hash="$(sha256sum "${ISO_PROFILES_ROOT}/${rel}" | awk '{print $1}')"
-        [[ "${local_hash}" == "${remote_hash}" ]] || stale+=("${rel}")
-    done
-
-    rm -f "${tarball}"
-
-    if [[ "${#stale[@]}" -eq 0 ]]; then
+    if [[ ${age} -lt ${ISO_PROFILES_WIP_MAX_AGE} ]]; then
         return 0
     fi
 
-    log_warn "iso-profiles differs from upstream wip: ${stale[*]}"
-    if tui_yesno "Update iso-profiles" \
-        "Your iso-profiles differs from upstream wip:\n\n$(printf '  - %s\n' "${stale[@]}")\n\nUpdate now?"; then
-        iso_profiles_ensure || log_warn "Update failed — continuing"
+    local age_days=$(( age / 86400 ))
+    log_info "wip iso-profiles cache is ${age_days} days old"
+
+    if tui_yesno "Update iso-profiles" "Your cached wip iso-profiles is ${age_days} days old.\n\nFetch the latest wip branch now?"; then
+        rm -rf "${ISO_PROFILES_WIP_ROOT}"
+        if _iso_profiles_fetch_wip; then
+            ISO_PROFILES_ACTIVE="${ISO_PROFILES_WIP_ROOT}"
+            log_info "wip iso-profiles refreshed"
+        else
+            log_warn "Refresh failed — using stale cache or falling back to packaged"
+            if _iso_profiles_wip_cached; then
+                ISO_PROFILES_ACTIVE="${ISO_PROFILES_WIP_ROOT}"
+            elif _iso_profiles_packaged_available; then
+                ISO_PROFILES_ACTIVE="${ISO_PROFILES_ROOT}"
+            fi
+        fi
     fi
     return 0
 }
@@ -97,12 +125,12 @@ quick_profile_load() {
     local init
     init="$(state_get INIT openrc)"
 
-    local common="${ISO_PROFILES_ROOT}/common/common.yaml"
-    local base="${ISO_PROFILES_ROOT}/base/profile.yaml"
-    local prof="${ISO_PROFILES_ROOT}/${profile}/profile.yaml"
+    local common="${ISO_PROFILES_ACTIVE}/common/common.yaml"
+    local base="${ISO_PROFILES_ACTIVE}/base/profile.yaml"
+    local prof="${ISO_PROFILES_ACTIVE}/${profile}/profile.yaml"
 
     [[ -f "$common" && -f "$base" && -f "$prof" ]] || {
-        log_warn "profile files missing for '${profile}'"
+        log_warn "profile files missing for '${profile}' (root: ${ISO_PROFILES_ACTIVE})"
         return 1
     }
 
@@ -146,6 +174,6 @@ quick_profile_load() {
     done
 
     state_set PROFILE_PACKAGES "${uniq[*]}"
-    log_info "Loaded ${#uniq[@]} packages for profile '${profile}' (init: ${init})"
+    log_info "Loaded ${#uniq[@]} packages for profile '${profile}' (init: ${init}, root: ${ISO_PROFILES_ACTIVE})"
     return 0
 }

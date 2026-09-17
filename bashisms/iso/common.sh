@@ -82,13 +82,31 @@ generate_offline_package_list() {
 
 generate_artools_profile() {
     local out_dir="${1}" profile_name="${2}" init="${3}" kernel="${4}" boot_mode="${5:-live}"
-    local base_profile="${6:-base}"
+    local base_profile="${6:-}"
 
-    local upstream_dir="${ISO_PROFILES_ROOT}/${base_profile}"
-    [[ -d "${upstream_dir}" ]] || die "Upstream profile not found: ${base_profile}"
+    local upstream_dir=""
+    if [[ -n "${base_profile}" ]]; then
+        local active_root="${ISO_PROFILES_ACTIVE:-${ISO_PROFILES_ROOT}}"
+        upstream_dir="${active_root}/${base_profile}"
+        if [[ ! -d "${upstream_dir}" ]]; then
+            log_warn "Upstream profile '${base_profile}' not found at ${upstream_dir}"
+            log_warn "Falling back to custom build (no upstream base)"
+            upstream_dir=""
+            base_profile=""
+        fi
+    fi
 
+    if [[ -n "${out_dir}" && "${out_dir}" != "/" && -d "${out_dir}" ]]; then
+        rm -rf "${out_dir}"
+    fi
     mkdir -p "${out_dir}"
-    cp -a "${upstream_dir}/." "${out_dir}/"
+
+    if [[ -n "${upstream_dir}" ]]; then
+        cp -a "${upstream_dir}/." "${out_dir}/"
+        log_info "Extended upstream profile: ${base_profile}"
+    else
+        log_info "Building custom ISO profile (no upstream base)"
+    fi
     mkdir -p "${out_dir}/live-overlay" "${out_dir}/airootfs/root" "${out_dir}/airootfs/etc"
 
     generate_offline_package_list "${init}" "${kernel}" > "${out_dir}/packages-offline.x86_64"
@@ -213,6 +231,9 @@ YAML
     done
 
     cp -a "${BASE_DIR}" "${out_dir}/airootfs/root/ArtixForge"
+        rm -rf "${out_dir}/airootfs/root/ArtixForge/.git" \
+           "${out_dir}/airootfs/root/ArtixForge/.github" \
+           "${out_dir}/airootfs/root/ArtixForge/.gitignore"
     log_info "ArtixForge copied into ISO at /root/ArtixForge"
 
     log_info "Artools profile generated: ${out_dir} (base: ${base_profile})"

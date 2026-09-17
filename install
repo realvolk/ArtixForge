@@ -28,13 +28,13 @@ installer_abort() {
 _generate_bug_report() {
     local report_dir="/tmp/artixforge-bugreport-$(date +%Y%m%d-%H%M%S)"
     mkdir -p "${report_dir}"
-    
+
     [[ -f /tmp/artix-installer/install.log ]] && cp /tmp/artix-installer/install.log "${report_dir}/"
     [[ -f /tmp/artix-installer/state.conf ]] && cp /tmp/artix-installer/state.conf "${report_dir}/"
     [[ -f /tmp/artix-migration-debug.log ]] && cp /tmp/artix-migration-debug.log "${report_dir}/"
     [[ -f /tmp/artix-installer/logs/artix-debug.log ]] && cp /tmp/artix-installer/logs/artix-debug.log "${report_dir}/"
     [[ -f /tmp/artix-installer/logs/post-stage.log ]] && cp /tmp/artix-installer/logs/post-stage.log "${report_dir}/"
-    
+
     if [[ -d /tmp/artix-installer/stages ]]; then
         cp -r /tmp/artix-installer/stages "${report_dir}/"
     fi
@@ -77,7 +77,7 @@ installer_error() {
         printf '[!] Last 20 lines:\n' >&2
         tail -20 /tmp/artix-migration-debug.log >&2
     fi
-    
+
     local report
     report=$(_generate_bug_report 2>/dev/null || true)
     if [[ -n "${report}" ]]; then
@@ -228,29 +228,21 @@ _artix_welcome() {
 }
 
 _verify_root_password() {
-    local attempt
-    attempt=$(tui_password "Root Password Required" "Enter root password to unlock advanced features:") || return 1
-    if [[ -z "${attempt}" ]]; then
+    local root_hash
+    root_hash=$(grep '^root:' /etc/shadow 2>/dev/null | cut -d: -f2)
+
+    if [[ -z "${root_hash}" || "${root_hash}" == "!" || "${root_hash}" == "*" ]]; then
+        [[ "${EUID}" -eq 0 ]] && return 0
         return 1
     fi
 
-    if [[ -f /etc/shadow ]]; then
-        local root_hash
-        root_hash=$(grep '^root:' /etc/shadow | cut -d: -f2)
-        if [[ -n "${root_hash}" && "${root_hash}" != "!" && "${root_hash}" != "*" ]]; then
-            local check
-            check=$(openssl passwd -6 -- "${attempt}" 2>/dev/null || true)
-            if [[ "${check}" == "${root_hash}" ]]; then
-                return 0
-            fi
-            return 1
-        fi
-    fi
+    local attempt
+    attempt=$(tui_password "Root Password Required" "Enter root password to unlock advanced features:") || return 1
+    [[ -n "${attempt}" ]] || return 1
 
-    if [[ "${EUID}" -eq 0 ]]; then
-        return 0
-    fi
-
+    local check
+    check=$(perl -e 'print crypt($ARGV[0], $ARGV[1])' "${attempt}" "${root_hash}" 2>/dev/null || true)
+    [[ "${check}" == "${root_hash}" ]] && return 0
     return 1
 }
 
@@ -258,12 +250,12 @@ _validate_post_install_script() {
     local script_path
     script_path="$(state_get POST_INSTALL_SCRIPT '')"
     [[ -n "${script_path}" ]] || return 0
-    
+
     if [[ ! -f "${script_path}" ]]; then
         log_error "POST_INSTALL_SCRIPT '${script_path}' does not exist"
         return 1
     fi
-    
+
     if [[ ! -r "${script_path}" ]]; then
         log_error "POST_INSTALL_SCRIPT '${script_path}' is not readable"
         return 1
@@ -335,7 +327,7 @@ run_install_pipeline() {
         tui_msg "State Validation Failed" "$(printf 'The state file has errors:\n\n%s\n\nCannot proceed.' "${lint_errors}")"
         return 1
     fi
-    
+
     if ! _validate_post_install_script; then
         return 1
     fi
@@ -374,41 +366,6 @@ run_migration() {
             ;;
         *) die "Unknown migration type: ${mig_type}" ;;
     esac
-}
-
-start_iso_build() {
-    if [[ -d /run/artix/sfs/rootfs ]]; then
-        tui_msg_quick "Not Supported" "ISO building from a live environment is not supported."
-        return 0
-    fi
-
-    if ! command -v buildiso &>/dev/null; then
-        if tui_yesno "Missing Tools" "artools is not installed. Install now?"; then
-            pacman -S --noconfirm artools iso-profiles || die "Failed to install artools"
-            modprobe loop
-        else
-            die "artools is required for ISO generation"
-        fi
-    fi
-
-    source "${BASHISMS_DIR}/iso/tui.sh"
-
-    tui_iso_hub || return 1
-
-    if [[ "$(state_get ALLOW_OFFLINE no)" == "yes" && "$(state_get ISO_BOOT_MODE live)" == "live" ]]; then
-        tui_iso_target_config
-    fi
-
-    local profile_name init kernel offline boot_mode iso_output_dir
-    profile_name="$(state_get QUICK_PROFILE Custom)"
-    init="$(state_get INIT openrc)"
-    kernel="$(state_get KERNEL_CHOICE linux)"
-    offline="$(state_get ALLOW_OFFLINE no)"
-    boot_mode="$(state_get ISO_BOOT_MODE live)"
-    iso_output_dir="$(state_get ISO_OUTPUT_DIR "${HOME}/ArtixForge-ISO")"
-
-    source "${BASHISMS_DIR}/iso/build.sh"
-    build_artix_iso "${profile_name}" "${init}" "${kernel}" "${offline}" "${boot_mode}" "${iso_output_dir}"
 }
 
 start_auto_install() {
@@ -477,7 +434,7 @@ Attempt recovery and continue installation?"; then
 
     while true; do
         tui_recovery_hub || break
-        
+
         if tui_yesno "Continue" "Recovery action completed. Continue with more repairs or proceed?"; then
             continue
         fi
@@ -543,9 +500,9 @@ main() {
         mkdir -p /tmp/artix-installer/logs
         exec 19> "/tmp/artix-installer/logs/artix-debug.log"
         export BASH_XTRACEFD=19
-        export PS4='+ ${BASH_SOURCE##*/}:${LINENO}:${FUNCNAME[0]}: '
+        export PS4='+ ${BASH_SOURCE##*/}:${LINENO}:${FUNCNAME[*]:-}: '
         set -x
-        trap 'printf "!!! ERROR at %s:%s in %s (rc=%s)\n" "${BASH_SOURCE##*/}" "${LINENO}" "${FUNCNAME[0]:-main}" "$?" >&19' ERR
+        trap 'printf "!!! ERROR at %s:%s in %s (rc=%s)\n" "${BASH_SOURCE##*/}" "${LINENO}" "${FUNCNAME[*]:-main}" "$?" >&19' ERR
     fi
 
     check_installer_version
