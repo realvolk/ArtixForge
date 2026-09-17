@@ -230,16 +230,16 @@ _artix_welcome() {
 _verify_root_password() {
     local attempt
     attempt=$(tui_password "Root Password Required" "Enter root password to unlock advanced features:") || return 1
-    if [[ -z "${attempt}" ]]; then
-        return 1
-    fi
+    [[ -n "${attempt}" ]] || return 1
 
     if [[ -f /etc/shadow ]]; then
         local root_hash
         root_hash=$(grep '^root:' /etc/shadow | cut -d: -f2)
         if [[ -n "${root_hash}" && "${root_hash}" != "!" && "${root_hash}" != "*" ]]; then
+            local salt
+            salt=$(printf '%s' "${root_hash}" | cut -d'$' -f3)
             local check
-            check=$(openssl passwd -6 -- "${attempt}" 2>/dev/null || true)
+            check=$(openssl passwd -6 -salt "${salt}" -- "${attempt}" 2>/dev/null || true)
             if [[ "${check}" == "${root_hash}" ]]; then
                 return 0
             fi
