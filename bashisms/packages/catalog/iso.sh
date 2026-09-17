@@ -6,8 +6,8 @@ ISO_BASE_PACKAGES=(
     base base-devel linux-firmware bash nano vim sudo git curl wget pciutils
     mkinitcpio efibootmgr dosfstools gptfdisk parted cryptsetup lvm2
     btrfs-progs xfsprogs f2fs-tools exfat-utils e2fsprogs
-    gum artools openssl rsync grub artix-grub-theme artix-grub-live
-    bc cpio pahole libelf
+    gum artools-base artools-iso artools-pkg openssl rsync grub artix-grub-theme artix-grub-live
+    bc cpio pahole libelf ex-vi-compat
 )
 
 declare -ga ISO_MICROCODE_PACKAGES
@@ -18,17 +18,6 @@ ISO_BUILD_TOOLS=(base-devel git)
 
 declare -ga ISO_KERNEL_CHOICES
 ISO_KERNEL_CHOICES=(linux linux-zen linux-lts linux-hardened)
-
-declare -ga ISO_EXTRA_PACKAGES_CHOICES
-ISO_EXTRA_PACKAGES_CHOICES=(
-    git flatpak fastfetch firewalld bluez zram-tools
-    fzf zoxide starship eza btop htop nvtop tmux
-    neovim micro helix
-    firefox chromium qutebrowser
-    ranger lf nnn thunar
-    alacritty kitty foot
-    mpv feh
-)
 
 declare -ga DE_CHROOT_BUILD
 DE_CHROOT_BUILD=(mango vxwm)

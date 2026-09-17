@@ -98,14 +98,17 @@ build_artix_iso() {
     local kernel="${3:-linux}"
     local offline="${4:-no}"
     local boot_mode="${5:-live}"
-    local user_output_dir="${6:-${HOME}/ArtixForge-ISO}"
-    local base_profile="${7:-base}"
+    local user_output_dir="${6:-${HOME:-/root}/ArtixForge-ISO}"
+    local base_profile="${7:-}"
+
+    export LC_ALL=C
+    export LANG=C
 
     local workspace
     if [[ -d /run/artix/sfs/rootfs ]]; then
         workspace="/root/artools-workspace"
     else
-        workspace="${HOME}/artools-workspace"
+        workspace="${HOME:-/root}/artools-workspace"
     fi
     local iso_output_dir="${workspace}/iso"
     local iso_profile_dir="${workspace}/iso-profiles/${profile_name}"
@@ -118,14 +121,40 @@ build_artix_iso() {
     iso_stage="$(cat "${iso_stage_file}" 2>/dev/null || echo "init")"
     log_info "ISO build stage: ${iso_stage}"
 
+    if [[ -f "${mount_sh_backup}" || -f "${buildiso_backup}" ]]; then
+        log_warn "Detected leftover patch files from a previous interrupted build:"
+        [[ -f "${buildiso_backup}" ]] && log_warn "  ${buildiso_backup}"
+        [[ -f "${mount_sh_backup}" ]] && log_warn "  ${mount_sh_backup}"
+
+        if ! tui_yesno "Repair artools" \
+"An ISO build was interrupted before it could restore the patched artools files.
+
+Reinstall artools and iso-profiles from the repository to restore clean copies?
+
+This will run:
+  pacman -S --noconfirm artools iso-profiles"; then
+            die "Cannot continue — artools files are in a modified state"
+        fi
+
+        pacman -S --noconfirm artools iso-profiles || die "Failed to reinstall artools"
+
+        rm -f "${mount_sh_backup}" "${buildiso_backup}" 2>/dev/null || true
+
+        if [[ -f "${mount_sh_backup}" || -f "${buildiso_backup}" ]]; then
+            die "Failed to remove patch backups — manual cleanup required"
+        fi
+
+        log_info "artools reinstalled, patch state cleared"
+    fi
+
+    trap '_iso_build_restore' EXIT
+
     local arch_repos arch_flag
     arch_repos="$(state_get ISO_ARCH_REPOS 'no')"
     arch_flag=""
     if [[ "${arch_repos}" == "yes" ]]; then
         arch_flag="-R arch"
     fi
-
-    trap '_iso_build_restore' EXIT
 
     if ! command -v buildiso >/dev/null; then
         log_info "Installing artools and iso-profiles..."
@@ -146,7 +175,7 @@ build_artix_iso() {
         sed -i '/find "\$mnt" -name.*\.pacnew.*-delete/s/$/ 2>\/dev\/null || true/' "${buildiso_bin}"
     fi
 
-    if [[ "${iso_stage}" == "init" || "${iso_stage}" == "profile" ]]; then
+    if [[ "${iso_stage}" == "init" ]]; then
         log_info "Extending upstream '${base_profile}' profile for ${profile_name} (${init}, ${boot_mode} mode)..."
         source "${ISO_DIR}/common.sh"
         generate_artools_profile "${iso_profile_dir}" "${profile_name}" "${init}" "${kernel}" "${boot_mode}" "${base_profile}"
@@ -159,7 +188,7 @@ build_artix_iso() {
     fi
 
     if [[ "${offline}" == "yes" ]]; then
-        if [[ "${iso_stage}" == "profile" || "${iso_stage}" == "offline" ]]; then
+        if [[ "${iso_stage}" == "init" || "${iso_stage}" == "profile" ]]; then
             source "${ISO_DIR}/offline.sh"
             log_info "Building offline package repository..."
 
@@ -211,7 +240,10 @@ build_artix_iso() {
                 esac
             fi
 
-            build_offline_repo "${iso_profile_dir}/airootfs/mnt/repo" "${offline_pkg_list}"
+            if ! build_offline_repo "${iso_profile_dir}/airootfs/mnt/repo" "${offline_pkg_list}"; then
+                die "Offline repository build failed — refusing to produce a mislabeled ISO"
+            fi
+
             mkdir -p "${iso_profile_dir}/airootfs/etc"
             cat > "${iso_profile_dir}/airootfs/etc/pacman.conf" <<'PACMAN'
 [options]
@@ -257,7 +289,7 @@ PACMAN
     pacman-key --lsign-key 78C9C713EAD7BEC69087447332E21894258C6105 2>/dev/null || log_warn "Buildbot key trust failed – build may still work"
 
     if [[ ${needs_chroot_build} -eq 1 ]]; then
-        if [[ "${iso_stage}" == "offline" || "${iso_stage}" == "profile" || "${iso_stage}" == "chroot" ]]; then
+        if [[ "${iso_stage}" == "init" || "${iso_stage}" == "profile" || "${iso_stage}" == "offline" ]]; then
             log_info "Non-repo packages detected. Building chroot first..."
 
             buildiso -p "${profile_name}" -i "${init}" -c -x ${arch_flag} 2>&1 || die "buildiso -x failed"
@@ -329,37 +361,28 @@ PACMAN
         fi
     fi
 
-    if [[ "${iso_stage}" == "chroot" || "${iso_stage}" == "offline" || "${iso_stage}" == "profile" || "${iso_stage}" == "iso" ]]; then
+    if [[ "${iso_stage}" != "iso" ]]; then
         log_info "Building ISO (this may take a while)..."
         local iso_log="${workspace}/iso-build-$(date +%Y%m%d-%H%M%S).log"
         buildiso -p "${profile_name}" -i "${init}" -c ${arch_flag} 2>&1 | tee "${iso_log}"
         local rc=${PIPESTATUS[0]}
 
-        if [[ ${rc} -eq 0 ]]; then
-            local iso_file
-            iso_file=$(find "${iso_output_dir}" -name '*.iso' -type f 2>/dev/null | head -n1)
-            if [[ -n "${iso_file}" ]]; then
-                mkdir -p "${user_output_dir}"
-                cp "${iso_file}" "${user_output_dir}/"
-                log_info "ISO created: ${user_output_dir}/${iso_file##*/}"
-                log_info "Build log: ${iso_log}"
-                cp "${iso_log}" "${user_output_dir}/" 2>/dev/null || true
-                tui_msg_quick "ISO Ready" "ISO created at:\n${user_output_dir}/${iso_file##*/}\n\nBuild log:\n${user_output_dir}/iso-build-*.log"
-            else
-                log_error "ISO file not found in ${iso_output_dir}"
-                die "buildiso completed but no ISO was produced"
-            fi
-        else
+        if [[ ${rc} -ne 0 ]]; then
             log_error "ISO build failed. Check log: ${iso_log}"
             cp "${iso_log}" "${ISO_DIR}/" 2>/dev/null || true
             die "buildiso exited with an error"
         fi
+
+        local iso_file
+        iso_file=$(find "${iso_output_dir}" -name '*.iso' -type f 2>/dev/null | head -n1)
+        [[ -n "${iso_file}" ]] || die "buildiso completed but no ISO was produced"
+
+        log_info "ISO created: ${iso_output_dir}/${iso_file##*/}"
+        log_info "Build log: ${iso_log}"
         echo "iso" > "${iso_stage_file}"
     else
         log_info "ISO already built — locating existing ISO..."
     fi
-
-    rm -rf /usr/share/artools/iso-profiles/"${profile_name}" 2>/dev/null || true
 
     rm -f "${iso_stage_file}"
 
@@ -369,9 +392,14 @@ PACMAN
 
     if [[ -n "${iso_file}" ]]; then
         mkdir -p "${user_output_dir}"
-        cp "${iso_file}" "${user_output_dir}/"
+        cp -f "${iso_file}" "${user_output_dir}/"
+        [[ -n "${iso_log:-}" && -f "${iso_log}" ]] && cp -f "${iso_log}" "${user_output_dir}/" 2>/dev/null || true
         log_info "ISO created: ${user_output_dir}/${iso_file##*/}"
-        tui_msg_quick "ISO Ready" "ISO created at:\n${user_output_dir}/${iso_file##*/}"
+        tui_msg_quick "ISO Ready" "ISO created at:
+${user_output_dir}/${iso_file##*/}
+
+Build log:
+${user_output_dir}/$(basename "${iso_log:-iso-build.log}")"
     else
         log_warn "ISO file not found in ${iso_output_dir}"
         log_warn "Check ${workspace} for the output"
