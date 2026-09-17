@@ -1,5 +1,10 @@
 # Changelog
 
+## v9.5.0.8 (2026-09-17) — Artix Installer
+
+### Changed
+- **User and root passwords now hashed with yescrypt (`$y$`)** — the installer previously wrote SHA-512 crypt (`$6$`) hashes to `/etc/shadow`, while Artix's own `passwd`/PAM stack produces yescrypt. The inconsistency meant a password set during installation was stored differently from one set afterwards. `generate_password_hash` in `bashisms/common/common.sh` now calls `mkpasswd -m yescrypt -s` and falls back to `openssl passwd -6` only if yescrypt is unavailable. All three call sites (`users.sh` user/root paths, `tui/menus/user.sh`) route through the new helper.
+
 ## v9.5.0.7 (2026-09-17) — Artix Installer
 
 ### Fixed

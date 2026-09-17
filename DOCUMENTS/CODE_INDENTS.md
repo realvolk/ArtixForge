@@ -732,4 +732,15 @@ only source.
 
 ---
 
+### Password hashing uses `mkpasswd`
+
+`generate_password_hash` in `bashisms/common/common.sh` calls `mkpasswd -m
+yescrypt -s`, with a fallback to `openssl passwd -6`. `mkpasswd` is shipped
+by the `whois` package on Artix.
+
+Fallback to `$6$` is not broken, just older. If the `log_warn` fires during
+a real install, `whois` is missing from the live ISO. Which I doubt is going to happened.
+
+---
+
 *This document grows as new hacks are added.*
