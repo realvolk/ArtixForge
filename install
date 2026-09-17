@@ -376,41 +376,6 @@ run_migration() {
     esac
 }
 
-start_iso_build() {
-    if [[ -d /run/artix/sfs/rootfs ]]; then
-        tui_msg_quick "Not Supported" "ISO building from a live environment is not supported."
-        return 0
-    fi
-
-    if ! command -v buildiso &>/dev/null; then
-        if tui_yesno "Missing Tools" "artools is not installed. Install now?"; then
-            pacman -S --noconfirm artools iso-profiles || die "Failed to install artools"
-            modprobe loop
-        else
-            die "artools is required for ISO generation"
-        fi
-    fi
-
-    source "${BASHISMS_DIR}/iso/tui.sh"
-
-    tui_iso_hub || return 1
-
-    if [[ "$(state_get ALLOW_OFFLINE no)" == "yes" && "$(state_get ISO_BOOT_MODE live)" == "live" ]]; then
-        tui_iso_target_config
-    fi
-
-    local profile_name init kernel offline boot_mode iso_output_dir
-    profile_name="$(state_get QUICK_PROFILE Custom)"
-    init="$(state_get INIT openrc)"
-    kernel="$(state_get KERNEL_CHOICE linux)"
-    offline="$(state_get ALLOW_OFFLINE no)"
-    boot_mode="$(state_get ISO_BOOT_MODE live)"
-    iso_output_dir="$(state_get ISO_OUTPUT_DIR "${HOME}/ArtixForge-ISO")"
-
-    source "${BASHISMS_DIR}/iso/build.sh"
-    build_artix_iso "${profile_name}" "${init}" "${kernel}" "${offline}" "${boot_mode}" "${iso_output_dir}"
-}
-
 start_auto_install() {
     rm -f /tmp/artix-installer/state.conf
     local var
