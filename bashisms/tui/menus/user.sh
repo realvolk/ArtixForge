@@ -126,7 +126,7 @@ tui_edit_user_dialog() {
     local pass
     pass=$(tui_password_confirm "User Password" "Enter password for ${name}:" "Confirm password:") || return
     if [[ -n "${pass}" ]]; then
-        pass=$(openssl passwd -6 -- "${pass}") || { log_error "Failed to hash password"; return; }
+        pass=$(generate_password_hash "${pass}") || { log_error "Failed to hash password"; return; }
     fi
 
     local current_shell="$(state_get "USER_${idx}_SHELL" "/bin/bash")"

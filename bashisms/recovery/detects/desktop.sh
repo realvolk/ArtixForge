@@ -2,30 +2,13 @@
 set -Eeuo pipefail
 
 detect_desktop() {
-    local -A de_map=(
-        [mangowm]=mango
-        [hyprland]=hyprland
-        [niri]=niri
-        [sway]=sway
-        [xfce4]=xfce4
-        [lxqt]=lxqt
-        [mate]=mate
-        [i3-wm]=i3wm
-        [dwm]=dwm
-        [vxwm]=vxwm
-        [icewm]=icewm
-        [sonicde-meta]=sonicde
-        [plasma-desktop]=kde
-        [cinnamon]=cinnamon
-        [budgie-desktop]=budgie
-        [moksha]=moksha
-        [cosmic]=cosmic
-    )
-
-    for pkg in "${!de_map[@]}"; do
-        if pacman_root_has "${pkg}"; then
-            state_set WM_DE "${de_map[$pkg]}"
-            if [[ "${de_map[$pkg]}" == "kde" ]]; then
+    local de pattern
+    for de in "${DE_DETECT_ORDER[@]}"; do
+        pattern="${DE_DETECT_PATTERN[$de]:-}"
+        [[ -n "${pattern}" ]] || continue
+        if pacman_root_has "${pattern}"; then
+            state_set WM_DE "${de}"
+            if [[ "${de}" == "kde" ]]; then
                 if pacman_root_has kde-applications; then
                     state_set KDE_PROFILE full
                 elif pacman_root_has dolphin; then

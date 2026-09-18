@@ -13,14 +13,27 @@ repair_migration() {
             correct_init=$(state_get INIT openrc)
             log_info "Reinstalling ${correct_init}..."
             case "${correct_init}" in
-                openrc) artix-chroot /mnt pacman -S --noconfirm openrc ;;
-                runit)  artix-chroot /mnt pacman -S --noconfirm runit ;;
-                dinit)  artix-chroot /mnt pacman -S --noconfirm dinit dinit-base dinit-rc ;;
-                s6)     artix-chroot /mnt pacman -S --noconfirm s6 s6-rc ;;
+                openrc) artix-chroot "${ROOT}" pacman -S --noconfirm openrc ;;
+                runit)  artix-chroot "${ROOT}" pacman -S --noconfirm runit ;;
+                dinit)  artix-chroot "${ROOT}" pacman -S --noconfirm dinit dinit-base dinit-rc ;;
+                s6)     artix-chroot "${ROOT}" pacman -S --noconfirm s6 s6-rc ;;
             esac
-            for init in runit dinit.d s6 init.d; do
-                if [[ "${init}" != "${correct_init}"* ]] && [[ "${init}" != "init.d" || "${correct_init}" != "openrc" ]]; then
-                    [[ -d "/mnt/etc/${init}" ]] && rm -rf "/mnt/etc/${init}" && log_info "Removed /etc/${init}"
+
+            local keep_dir
+            case "${correct_init}" in
+                openrc) keep_dir="init.d" ;;
+                runit)  keep_dir="runit" ;;
+                dinit)  keep_dir="dinit.d" ;;
+                s6)     keep_dir="s6" ;;
+                *)      keep_dir="" ;;
+            esac
+
+            local dir
+            for dir in init.d runit dinit.d s6; do
+                [[ "${dir}" == "${keep_dir}" ]] && continue
+                if [[ -d "${ROOT}/etc/${dir}" ]]; then
+                    rm -rf "${ROOT}/etc/${dir}"
+                    log_info "Removed ${ROOT}/etc/${dir}"
                 fi
             done
         fi

@@ -11,7 +11,7 @@ Do not open a public issue for security issues.
 
 | Version | Supported |
 |---------|-----------|
-| v9.5.0.7 | Latest Commits |
+| v9.5.1.0 | Latest Commits |
 | v9.5.0.6 | Latest Stable release |
 | < v9.5.0.6 | No |
 
@@ -52,12 +52,12 @@ Security concerns include, but are not limited to:
 - ATA systemd-boot → GRUB conversion — EFI boot entries modified; old entries removed via efibootmgr
 - gum TUI transport — interactive widgets called directly via `/dev/tty`; passwords from `tui_password` and `tui_password_confirm` pass through gum's stdout, never written to temp files
 - gum checklist output — newline-separated results parsed with whitespace stripping before use; `tr -d '[]"'` applied at consumption points to prevent artifact injection into system commands (`useradd -G`, `state_set`)
-- Password handling — user and root passwords are hashed with `openssl passwd -6` before being stored to `state.conf`. Plaintext passwords never touch the state file or disk. LUKS passphrases are stored plaintext (required by `cryptsetup`) in the state file, which lives on tmpfs and is lost on reboot
+- Password handling — user and root passwords are hashed with yescrypt (`$y$`) via `mkpasswd` before being stored to `state.conf`, with a fallback to SHA-512 crypt (`$6$`) via `openssl passwd -6` if `mkpasswd` is unavailable. Plaintext passwords never touch the state file or disk. LUKS passphrases are stored plaintext (required by `cryptsetup`) in the state file, which lives on tmpfs and is lost on reboot
 - Bug report tarball — contains install log, state file, debug trace, post-stage log, and retry log. State file may contain password hashes and LUKS passphrases. The tarball is written to `/tmp` with default permissions and the user is warned to include it only when reporting issues
 
 ## Best Practices
 
-- ArtixForge never writes plaintext passwords to disk. Passwords are hashed with `openssl passwd -6` before being passed to the target system.
+- ArtixForge never writes plaintext passwords to disk. Passwords are hashed with yescrypt (`$y$`) via `mkpasswd` before being passed to the target system, matching Artix's own `passwd`/PAM default. Fallback to SHA-512 crypt (`$6$`) via `openssl passwd -6` occurs only if `mkpasswd` is unavailable.
 - LUKS passphrases are held in memory only during the installation and are not persisted.
 - LUKS containers are properly formatted with `luksFormat --type luks2 --pbkdf pbkdf2` for GRUB compatibility.
 - LUKS keyfile (`/crypto_keyfile.bin`) is embedded in initramfs with `chmod 000` permissions. It resides only in the initramfs image on the encrypted root partition and is never written to unencrypted storage.

@@ -16,7 +16,7 @@ The installer runs entirely on your local machine. It does not:
 |------|----------|------|
 | Installation configuration | `/tmp/artix-installer/state.conf` | Deleted on reboot (tmpfs) |
 | Stage progress markers | `/tmp/artix-installer/stages/` | Deleted on reboot (tmpfs) |
-| User password hashes | `/tmp/artix-installer/state.conf` (SHA-512 crypt hash) | Deleted on reboot (tmpfs) |
+| User password hashes | `/tmp/artix-installer/state.conf` (yescrypt `$y$` hash, SHA-512 crypt `$6$` fallback) | Deleted on reboot (tmpfs) |
 | LUKS passphrase | Memory only, never written to disk | Gone when installer exits |
 | Target system config | `/mnt/etc/artix-installer.conf` | Shredded or removed during finalize stage |
 | Quick Profile save | `/mnt/etc/artixforge-profile.conf` | Remains on installed system for reuse |
@@ -36,7 +36,7 @@ The installer runs entirely on your local machine. It does not:
 | One-shot service command | Per-init service file on target system | Self-destructs on success; retries on failure |
 | Per-user dotfiles | `~/.config` and home directory | Cloned from user-provided URL; remains in user home |
 
-The installed system itself contains no ArtixForge-specific data collection. The installer
+The installed system itself contains no Artix Installer-specific data collection. The installer
 removes its own configuration from the target before finishing.
 
 ### ATA (Arch to Artix) Migration
@@ -69,7 +69,7 @@ API calls are made for system audit or conversion.
 
 ## Network access
 
-ArtixForge downloads packages from Artix Linux mirrors and source tarballs from
+Artix Installer downloads packages from Artix Linux mirrors and source tarballs from
 upstream URLs specified in recipes. These are standard package manager operations
 — the same as running `pacman -Syu` or `git clone`. No additional network requests
 are made.
@@ -86,7 +86,7 @@ The state preset encryption uses local GPG only. No keys or passphrases are
 transmitted anywhere. The encrypted preset file is local.
 
 Post-install scripts (`POST_INSTALL_SCRIPT`) and one-shot services
-(`POST_INSTALL_ONESHOT`) are user-provided. ArtixForge copies them to the target
+(`POST_INSTALL_ONESHOT`) are user-provided. Artix Installer copies them to the target
 system but does not inspect, transmit, or execute them outside the local
 installation.
 

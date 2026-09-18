@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+ROOT="${ROOT:-/mnt}"
+
 repair_detected_issues() {
     local fstab_issues boot_issues pacman_issues migration_issues iso_issues
     fstab_issues=$(state_get FSTAB_ISSUES none)
@@ -44,15 +46,15 @@ repair_detected_issues() {
     if [[ ${did_something} -eq 1 ]]; then
         if [[ "${boot_issues}" =~ no-initramfs || "${boot_issues}" =~ no-kernel ]] || \
            [[ "${fstab_issues}" != "none" ]]; then
-            if [[ -x /mnt/usr/bin/mkinitcpio ]]; then
+            if [[ -x "${ROOT}/usr/bin/mkinitcpio" ]]; then
                 log_info "Regenerating initramfs..."
-                artix-chroot /mnt mkinitcpio -P 2>/dev/null || log_warn "mkinitcpio failed"
+                artix-chroot "${ROOT}" mkinitcpio -P 2>/dev/null || log_warn "mkinitcpio failed"
             fi
         fi
 
-        if [[ "${boot_issues}" != "none" ]] && [[ -d /mnt/boot/grub ]]; then
+        if [[ "${boot_issues}" != "none" ]] && [[ -d "${ROOT}/boot/grub" ]]; then
             log_info "Regenerating GRUB config..."
-            artix-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || log_warn "grub-mkconfig failed"
+            artix-chroot "${ROOT}" grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || log_warn "grub-mkconfig failed"
         fi
     else
         log_info "No issues detected — nothing to repair."
@@ -67,22 +69,22 @@ repair_system() {
     repair_pacman
     repair_boot
     repair_kernel
-    if [[ -x /mnt/usr/bin/mkinitcpio ]]; then
-        artix-chroot /mnt mkinitcpio -P 2>/dev/null || log_warn "mkinitcpio failed"
+    if [[ -x "${ROOT}/usr/bin/mkinitcpio" ]]; then
+        artix-chroot "${ROOT}" mkinitcpio -P 2>/dev/null || log_warn "mkinitcpio failed"
     fi
-    if [[ -d /mnt/boot/grub ]]; then
-        artix-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || log_warn "grub-mkconfig failed"
+    if [[ -d "${ROOT}/boot/grub" ]]; then
+        artix-chroot "${ROOT}" grub-mkconfig -o /boot/grub/grub.cfg 2>/dev/null || log_warn "grub-mkconfig failed"
     fi
     log_info "Full repair complete."
 }
 
 repair_filesystem() {
     local root_part fs_type
-    root_part="$(findmnt -no SOURCE /mnt 2>/dev/null || true)"
+    root_part="$(findmnt -no SOURCE "${ROOT}" 2>/dev/null || true)"
     fs_type="$(state_get FS_TYPE ext4)"
 
     if [[ -z "${root_part}" || ! -b "${root_part}" ]]; then
-        log_error "Could not determine root partition — is /mnt mounted?"
+        log_error "Could not determine root partition — is ${ROOT} mounted?"
         return 1
     fi
 
@@ -108,10 +110,10 @@ Always back up your data first."
 
     if [[ "${fs_type}" == "btrfs" ]]; then
         log_info "Unmounting BTRFS subvolumes recursively..."
-        umount -R /mnt 2>/dev/null || { log_error "Failed to unmount /mnt recursively — something is using it"; return 1; }
+        umount -R "${ROOT}" 2>/dev/null || { log_error "Failed to unmount ${ROOT} recursively — something is using it"; return 1; }
     else
-        log_info "Unmounting /mnt for filesystem check..."
-        umount /mnt 2>/dev/null || { log_error "Failed to unmount /mnt — something is using it"; return 1; }
+        log_info "Unmounting ${ROOT} for filesystem check..."
+        umount "${ROOT}" 2>/dev/null || { log_error "Failed to unmount ${ROOT} — something is using it"; return 1; }
     fi
 
     case "${fs_type}" in
@@ -150,7 +152,7 @@ Always back up your data first."
             ;;
         *)
             log_warn "Filesystem repair not supported for ${fs_type}"
-            mount "${root_part}" /mnt || die "Failed to remount after repair attempt"
+            mount "${root_part}" "${ROOT}" || die "Failed to remount after repair attempt"
             return 1
             ;;
     esac
@@ -160,14 +162,14 @@ Always back up your data first."
         die "Filesystem may be destroyed. Manual recovery required."
     fi
 
-    log_info "Remounting ${root_part} to /mnt..."
+    log_info "Remounting ${root_part} to ${ROOT}..."
     if [[ "${fs_type}" == "btrfs" ]]; then
-        mount "${root_part}" /mnt || die "Failed to remount after repair"
-        if [[ -f /mnt/etc/fstab ]]; then
-            mount -a --fstab /mnt/etc/fstab 2>/dev/null || true
+        mount "${root_part}" "${ROOT}" || die "Failed to remount after repair"
+        if [[ -f "${ROOT}/etc/fstab" ]]; then
+            mount -a --fstab "${ROOT}/etc/fstab" 2>/dev/null || true
         fi
     else
-        mount "${root_part}" /mnt || die "Failed to remount after repair"
+        mount "${root_part}" "${ROOT}" || die "Failed to remount after repair"
     fi
 
     if tui_yesno "Post-Repair" "Would you like to run standard system repair (fstab, boot, etc.)?"; then
@@ -210,25 +212,25 @@ Proceed?"
 
     log_info "Checking for common malware indicators..."
     local indicators=0
-    if [[ -d /mnt/etc/cron.d ]]; then
-        if grep -rl 'wget\|curl.*|.*sh' /mnt/etc/cron.* /mnt/var/spool/cron 2>/dev/null; then
+    if [[ -d "${ROOT}/etc/cron.d" ]]; then
+        if grep -rl 'wget\|curl.*|.*sh' "${ROOT}/etc/cron."* "${ROOT}/var/spool/cron" 2>/dev/null; then
             log_warn "Suspicious cron entries found (wget/curl piped to shell)"
             indicators=1
         fi
     fi
-    if [[ -d /mnt/etc/systemd/system ]]; then
-        if grep -rl 'ExecStart=.*/tmp/' /mnt/etc/systemd/system 2>/dev/null; then
+    if [[ -d "${ROOT}/etc/systemd/system" ]]; then
+        if grep -rl 'ExecStart=.*/tmp/' "${ROOT}/etc/systemd/system" 2>/dev/null; then
             log_warn "Systemd services executing from /tmp found"
             indicators=1
         fi
     fi
-    if [[ -f /mnt/root/.ssh/authorized_keys ]]; then
-        if grep -q 'ssh-rsa' /mnt/root/.ssh/authorized_keys 2>/dev/null; then
+    if [[ -f "${ROOT}/root/.ssh/authorized_keys" ]]; then
+        if grep -q 'ssh-rsa' "${ROOT}/root/.ssh/authorized_keys" 2>/dev/null; then
             log_info "Root SSH keys present — ensure you recognize them"
         fi
     fi
     local suid_check
-    suid_check=$(find /mnt/usr/bin /mnt/bin /mnt/sbin -type f -perm -4000 -perm -o+w 2>/dev/null)
+    suid_check=$(find "${ROOT}/usr/bin" "${ROOT}/bin" "${ROOT}/sbin" -type f -perm -4000 -perm -o+w 2>/dev/null)
     if [[ -n "${suid_check}" ]]; then
         log_warn "World-writable SUID binaries found:"
         printf '%s\n' "${suid_check}" | tee -a /tmp/untrusted-recovery.log
@@ -245,8 +247,8 @@ Proceed?"
             pacman -S --noconfirm clamav
             freshclam --quiet || log_warn "ClamAV database update failed"
         fi
-        log_info "Scanning /mnt with ClamAV (this may take a long time)..."
-        clamscan -r --bell --max-filesize=100M --max-scansize=100M /mnt 2>&1 | tee /tmp/clamav-untrusted.log
+        log_info "Scanning ${ROOT} with ClamAV (this may take a long time)..."
+        clamscan -r --bell --max-filesize=100M --max-scansize=100M "${ROOT}" 2>&1 | tee /tmp/clamav-untrusted.log
         if grep -q 'FOUND' /tmp/clamav-untrusted.log; then
             log_warn "ClamAV found potential threats. Review /tmp/clamav-untrusted.log"
         else

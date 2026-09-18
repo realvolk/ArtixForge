@@ -83,32 +83,16 @@ detect_kernel() {
         return 0
     fi
 
-    local -a tier1=(
-        linux-cachyos-bmq linux-cachyos-eevdf linux-cachyos-rt-bore
-        linux-cachyos-hardened linux-cachyos-lts linux-cachyos-server
-        linux-cachyos-deckify linux-cachyos-bore linux-cachyos
-        linux-xanmod-x64v4 linux-xanmod-x64v3 linux-xanmod-x64v2 linux-xanmod
-        linux-bazzite-bin
-        linux-tkg linux-tkg-bore
-    )
-
-    for k in "${tier1[@]}"; do
-        if pacman_root_has "${k}"; then
-            state_set KERNEL_CHOICE "${k#linux-}"
-            return 0
-        fi
-    done
-
-    local -a tier2=(linux-zen linux-lts linux-hardened linux-libre linux)
-    for k in "${tier2[@]}"; do
-        if pacman_root_has "${k}"; then
-            state_set KERNEL_CHOICE "${k#linux-}"
+    local pkg
+    for pkg in "${KERNEL_LIST[@]}"; do
+        if pacman_root_has "${pkg}"; then
+            state_set KERNEL_CHOICE "${pkg}"
             return 0
         fi
     done
 
     if [[ -d "${ROOT}/opt/linux-tkg" ]]; then
-        state_set KERNEL_CHOICE tkg
+        state_set KERNEL_CHOICE linux-tkg
         return 0
     fi
 

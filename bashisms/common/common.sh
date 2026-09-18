@@ -358,3 +358,17 @@ parse_size_to_mb() {
         *)      printf '' ;;
     esac
 }
+
+generate_password_hash() {
+    local password="${1}"
+    local hash
+
+    if hash=$(printf '%s' "${password}" | mkpasswd -m yescrypt -s 2>/dev/null) \
+        && [[ "${hash}" == '$y$'* ]]; then
+        printf '%s' "${hash}"
+        return 0
+    fi
+
+    log_warn "yescrypt unavailable, falling back to SHA-512 crypt"
+    openssl passwd -6 -- "${password}"
+}

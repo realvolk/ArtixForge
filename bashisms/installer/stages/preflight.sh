@@ -74,7 +74,7 @@ stage_preflight() {
     if [[ "${ARTIX_BOOT_MODE:-uefi}" == "bios" ]]; then
         local parted_ver
         parted_ver=$(parted --version | head -1 | awk '{print $NF}')
-        if [[ "${parted_ver}" > "3.4" ]]; then
+        if [[ "$(vercmp "${parted_ver}" "3.4")" -gt 0 ]]; then
             log_warn "parted ${parted_ver} may create partitions GRUB cannot read."
             if tui_yesno "Downgrade parted" "Downgrade parted to 3.4-2 for compatibility?"; then
                 pacman -U --noconfirm "https://archive.artixlinux.org/packages/p/parted/parted-3.4-2-x86_64.pkg.tar.zst" || log_warn "Downgrade failed – continuing"

@@ -120,10 +120,10 @@ configure_users() {
         [[ -x "/mnt${shell}" ]] || shell="/bin/bash"
 
         local user_hash
-        if [[ "${password}" == '$6$'* ]]; then
+        if [[ "${password}" == '$6$'* || "${password}" == '$y$'* ]]; then
             user_hash="${password}"
         elif [[ -n "${password}" ]]; then
-            user_hash=$(openssl passwd -6 -- "${password}") || {
+            user_hash=$(generate_password_hash "${password}") || {
                 log_warn "Failed to hash password for ${username}"
                 user_hash=""
             }
@@ -182,7 +182,7 @@ fi
         if [[ "${root_password}" == '$6$'* ]]; then
             root_hash="${root_password}"
         else
-            root_hash=$(openssl passwd -6 -- "${root_password}") || die 'failed to hash root password'
+            root_hash=$(generate_password_hash "${root_password}") || die 'failed to hash root password'
         fi
         artix-chroot /mnt usermod -p "${root_hash}" root
         log_info "Root password set."
