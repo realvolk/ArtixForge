@@ -16,7 +16,7 @@ optdepends=(
 )
 makedepends=('git')
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/realvolk/ArtixForge/archive/refs/tags/v${pkgver}.tar.gz")
-sha256sums=('5291e210064769e4ae8d08a4fcebff97f8fe6787f960daaa82c4328a7970244c')
+sha256sums=('87c2e5e0fa940e0946902bcdd0487c30d717494d3291d1d35e4d6a64c6279a32')
 
 package() {
     install -dm755 "${pkgdir}/usr/share/artixforge"
