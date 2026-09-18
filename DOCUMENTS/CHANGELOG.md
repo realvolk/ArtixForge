@@ -1,6 +1,6 @@
 # Changelog
 
-## v9.5.1.0 (2026-09-19) — Artix Installer
+## v9.5.1.0 (2026-09-18) — Artix Installer
 
 ### Fixed
 - **BTRFS standard/snapshot layouts installed to the wrong subvolume** — the storage stage created `@` and `@home` but then attempted to switch the mount with `mount -o remount,...,subvol=@`. BTRFS silently ignores `subvol=` on remount, so `/mnt` stayed at the top-level subvolume for the entire install. At boot the initramfs mounted an empty `@`, `/sbin/init` didn't exist, and the system dropped to emergency shell with `ERROR: Root device mounted successfully, but /sbin/init does not exist.` Reported in #30.
