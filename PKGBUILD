@@ -1,7 +1,7 @@
 # Maintainer: Volk <realvolk@github.com>
 
 pkgname=artixforge
-pkgver=9.5.0.6
+pkgver=9.5.1.0
 pkgrel=1
 pkgdesc="Modular TUI installer framework for Artix Linux"
 arch=('any')
