@@ -249,17 +249,23 @@ recovery_get_status() {
     status+="Coreutils: $(state_get COREUTILS unknown)"$'\n'
 
     local fstab_issues boot_issues pacman_issues migration_issues iso_issues
+    local dns_issues hostname_drift
     fstab_issues=$(state_get FSTAB_ISSUES none)
     boot_issues=$(state_get BOOT_ISSUES none)
     pacman_issues=$(state_get PACMAN_ISSUES none)
     migration_issues=$(state_get MIGRATION_ISSUES none)
     iso_issues=$(state_get ISO_ISSUES none)
+    dns_issues=$(state_get DNS_ISSUES none)
+    hostname_drift=$(state_get HOSTNAME_DRIFT none)
 
     [[ "${fstab_issues}" != "none" ]] && status+=$'\n'"FSTAB issues: ${fstab_issues}"
     [[ "${boot_issues}" != "none" ]] && status+=$'\n'"Boot issues: ${boot_issues}"
     [[ "${pacman_issues}" != "none" ]] && status+=$'\n'"Pacman issues: ${pacman_issues}"
     [[ "${migration_issues}" != "none" ]] && status+=$'\n'"Migration issues: ${migration_issues}"
     [[ "${iso_issues}" != "none" ]] && status+=$'\n'"ISO issues: ${iso_issues}"
+    [[ "${dns_issues}" != "none" ]] && status+=$'\n'"DNS issues: ${dns_issues}"
+    [[ "${hostname_drift}" != "none" && "${hostname_drift}" != "no-hostname-file" ]] \
+        && status+=$'\n'"Hostname drift: ${hostname_drift}"
 
     printf '%s\n' "${status}"
 }
@@ -291,6 +297,8 @@ reconstruct_state_from_system() {
     detect_nvidia
     detect_virtualization
     detect_hostname
+    detect_hostname_drift
+    detect_dns_health
     detect_coreutils
     detect_poweruser
     detect_priv_escalation
@@ -299,6 +307,7 @@ reconstruct_state_from_system() {
     detect_boot_health
     detect_btrfs_subvol_health
     detect_pacman_health
+    detect_partial_upgrade
     if tui_yesno "Extended Detection" "Run extended checks for INIT migration issues or broken ISO builds?"; then
         detect_migration_health
         detect_iso_health

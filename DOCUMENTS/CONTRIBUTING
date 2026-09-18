@@ -1,7 +1,7 @@
 # CONTRIBUTING
 
-ArtixForge welcomes contributions from anyone, provided they fall within a
-reasonable scope aligned with the project's goals.
+Artix Installer ("ArtixForge") welcomes contributions from anyone, provided they fall
+within a reasonable scope aligned with the project's goals.
 
 ## Testing
 
@@ -23,13 +23,20 @@ to verify that no regressions or unexpected failures are introduced.
 Untested or poorly verified changes may be rejected or delayed pending
 further validation.
 
+There is no automated test suite. "Tested" means: installed Artix with the
+modified code on real or virtual hardware, exercised the affected subsystem
+(install, recovery, migration, ISO build, Power User), and confirmed the
+resulting system boots and behaves as expected. Include in your PR which
+scenarios you tested, what hardware or VM, and any relevant logs.
+
 These testing requirements apply to external contributors. The project
 maintainer reserves the right to commit changes directly to the repository
 without prior public testing or review. All such commits remain subject to
 the license's disclaimer of liability.
 
-Once ArtixForge is in the [galaxy] repository, packagers should follow the 
-Artix Linux packaging guidelines.
+Artix Installer (packaged as `artixforge`) is available in the Artix
+`[galaxy-gremlins]` repository. Packagers should follow the Artix Linux
+packaging guidelines when submitting updates.
 
 Malicious or intentionally harmful contributions will be rejected and the
 submitter permanently banned from further participation. This includes, but
@@ -37,7 +44,8 @@ is not limited to, introducing backdoors, spyware, logic bombs, or any code
 intended to cause damage or security vulnerabilities.
 
 If you discover a security vulnerability, do not submit it as a public pull
-request. Instead, follow the reporting process in [SECURITY.md](DOCUMENTS/SECURITY.md).
+request. Instead, follow the reporting process in
+[SECURITY.md](DOCUMENTS/SECURITY.md).
 
 ## Credit
 

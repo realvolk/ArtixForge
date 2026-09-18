@@ -76,6 +76,7 @@ detect_boot_health() {
 
     if [[ "$(state_get USE_LUKS no)" == "yes" ]]; then
         local cmdline_missing=0
+        local cmdline_has_cryptkey=0
         local bootloader
         bootloader=$(state_get BOOTLOADER grub)
 
@@ -83,6 +84,7 @@ detect_boot_health() {
             grub)
                 if [[ -f "${ROOT}/boot/grub/grub.cfg" ]]; then
                     grep -q 'cryptdevice=' "${ROOT}/boot/grub/grub.cfg" || cmdline_missing=1
+                    grep -q 'cryptkey=' "${ROOT}/boot/grub/grub.cfg" && cmdline_has_cryptkey=1
                 else
                     cmdline_missing=1
                 fi
@@ -93,6 +95,7 @@ detect_boot_health() {
                 [[ -f "${ROOT}/boot/limine.conf" ]] && limine_conf="${ROOT}/boot/limine.conf"
                 if [[ -f "${limine_conf}" ]]; then
                     grep -q 'cryptdevice=' "${limine_conf}" || cmdline_missing=1
+                    grep -q 'cryptkey=' "${limine_conf}" && cmdline_has_cryptkey=1
                 else
                     cmdline_missing=1
                 fi
@@ -100,6 +103,7 @@ detect_boot_health() {
             refind)
                 if [[ -f "${ROOT}/boot/refind_linux.conf" ]]; then
                     grep -q 'cryptdevice=' "${ROOT}/boot/refind_linux.conf" || cmdline_missing=1
+                    grep -q 'cryptkey=' "${ROOT}/boot/refind_linux.conf" && cmdline_has_cryptkey=1
                 else
                     cmdline_missing=1
                 fi
@@ -114,6 +118,21 @@ detect_boot_health() {
 
         if [[ -f "${ROOT}/etc/mkinitcpio.conf" ]]; then
             grep -q 'encrypt' "${ROOT}/etc/mkinitcpio.conf" || issues+="missing-encrypt-hook "
+        fi
+
+        if [[ "$(state_get LUKS_KEYFILE no)" == "yes" ]]; then
+            if [[ ${cmdline_has_cryptkey} -eq 0 ]]; then
+                issues+="missing-cryptkey "
+            fi
+
+            if [[ ! -f "${ROOT}/crypto_keyfile.bin" ]]; then
+                issues+="keyfile-missing "
+            fi
+
+            if [[ -f "${ROOT}/boot/initramfs-linux.img" ]] && command -v lsinitcpio &>/dev/null; then
+                lsinitcpio "${ROOT}/boot/initramfs-linux.img" 2>/dev/null | grep -q 'crypto_keyfile' \
+                    || issues+="keyfile-not-in-initramfs "
+            fi
         fi
     fi
 
@@ -241,4 +260,40 @@ detect_btrfs_subvol_health() {
         state_set BOOT_ISSUES "${issues}"
         log_warn "btrfs: system is at the top level, but cmdline expects subvol=${cmdline_subvol}"
     fi
+}
+
+detect_partial_upgrade() {
+    local extra=""
+
+    if compgen -G "${ROOT}/var/cache/pacman/pkg/*.part" >/dev/null 2>&1; then
+        local count
+        count=$(find "${ROOT}/var/cache/pacman/pkg" -maxdepth 1 -name '*.part' | wc -l)
+        extra+="partial-downloads:${count} "
+    fi
+
+    if [[ -d "${ROOT}/var/lib/pacman/local" ]]; then
+        local incomplete=0
+        local pkgdir
+        for pkgdir in "${ROOT}"/var/lib/pacman/local/*/; do
+            [[ -d "${pkgdir}" ]] || continue
+            [[ -f "${pkgdir}/desc" ]] || continue
+            [[ -f "${pkgdir}/files" ]] || ((incomplete++))
+        done
+        [[ ${incomplete} -gt 0 ]] && extra+="incomplete-packages:${incomplete} "
+    fi
+
+    if [[ -f "${ROOT}/var/log/pacman.log" ]]; then
+        local last_line
+        last_line=$(tail -n1 "${ROOT}/var/log/pacman.log" 2>/dev/null || echo "")
+        if [[ "${last_line}" == *"[ALPM] transaction started"* ]]; then
+            extra+="interrupted-transaction "
+        fi
+    fi
+
+    [[ -z "${extra}" ]] && return 0
+
+    local existing
+    existing=$(state_get PACMAN_ISSUES none)
+    [[ "${existing}" == "none" ]] && existing=""
+    state_set PACMAN_ISSUES "${existing}${extra}"
 }

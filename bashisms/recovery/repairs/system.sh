@@ -452,3 +452,99 @@ repair_seat_manager() {
         fi
     fi
 }
+
+repair_dns() {
+    local issues
+    issues=$(state_get DNS_ISSUES none)
+    [[ "${issues}" == "none" ]] && return 0
+
+    if [[ "${issues}" =~ no-resolv-conf || "${issues}" =~ broken-resolv-symlink || "${issues}" =~ no-nameserver ]]; then
+        log_warn "resolv.conf is missing or broken: ${issues}"
+        if tui_yesno "Repair DNS" "Write a working /etc/resolv.conf?"; then
+            local dns
+            dns=$(tui_menu "DNS Server" "Choose a resolver:" \
+                "Cloudflare (1.1.1.1)" \
+                "Google (8.8.8.8)" \
+                "Quad9 (9.9.9.9)" \
+                "Custom") || return 0
+
+            local primary secondary
+            case "${dns}" in
+                Cloudflare*) primary="1.1.1.1"; secondary="1.0.0.1" ;;
+                Google*)     primary="8.8.8.8"; secondary="8.8.4.4" ;;
+                Quad9*)      primary="9.9.9.9"; secondary="149.112.112.112" ;;
+                Custom)
+                    primary=$(tui_input "DNS" "Primary DNS:" "1.1.1.1") || return 0
+                    secondary=$(tui_input "DNS" "Secondary DNS (optional):" "") || secondary=""
+                    ;;
+            esac
+
+            [[ -L "${ROOT}/etc/resolv.conf" ]] && rm -f "${ROOT}/etc/resolv.conf"
+            {
+                printf 'nameserver %s\n' "${primary}"
+                [[ -n "${secondary}" ]] && printf 'nameserver %s\n' "${secondary}"
+            } > "${ROOT}/etc/resolv.conf"
+            chmod 644 "${ROOT}/etc/resolv.conf"
+            log_info "Wrote /etc/resolv.conf with ${primary}"
+        fi
+    fi
+
+    if [[ "${issues}" =~ hosts-no-localhost || "${issues}" =~ hosts-no-ipv6-localhost || "${issues}" =~ no-etc-hosts ]]; then
+        log_warn "hosts file is missing or incomplete: ${issues}"
+        if tui_yesno "Repair hosts" "Restore the default /etc/hosts entries?"; then
+            local hostname
+            hostname=$(tr -d '[:space:]' < "${ROOT}/etc/hostname" 2>/dev/null || echo "artix")
+
+            if [[ ! -f "${ROOT}/etc/hosts" ]]; then
+                cat > "${ROOT}/etc/hosts" <<EOF
+# /etc/hosts: Local Host Database
+127.0.0.1   localhost
+::1         localhost
+127.0.1.1   ${hostname}.localdomain ${hostname}
+EOF
+                log_info "Created /etc/hosts"
+            else
+                if ! grep -qE '^127\.0\.0\.1\s+localhost' "${ROOT}/etc/hosts"; then
+                    printf '127.0.0.1   localhost\n' >> "${ROOT}/etc/hosts"
+                fi
+                if ! grep -qE '^::1\s+localhost' "${ROOT}/etc/hosts"; then
+                    printf '::1         localhost\n' >> "${ROOT}/etc/hosts"
+                fi
+                log_info "Appended missing entries to /etc/hosts"
+            fi
+        fi
+    fi
+}
+
+repair_hostname_drift() {
+    local drift
+    drift=$(state_get HOSTNAME_DRIFT none)
+    [[ "${drift}" == "none" || "${drift}" == "no-hostname-file" ]] && return 0
+
+    log_warn "Hostname drift detected: ${drift}"
+
+    local file_host state_host
+    file_host=$(grep -oP 'file=\K[^,]*' <<< "${drift}" || echo "")
+    state_host=$(grep -oP 'state=\K.*' <<< "${drift}" || echo "")
+
+    local choice
+    choice=$(tui_menu "Hostname Drift" \
+"Installed hostname: ${file_host:-unknown}
+Recorded hostname:  ${state_host:-unknown}
+
+Something renamed the system after installation." \
+        "Use installed hostname (${file_host})" \
+        "Use recorded hostname (${state_host})" \
+        "Leave as-is") || return 0
+
+    case "${choice}" in
+        "Use installed"*)
+            state_set HOSTNAME "${file_host}"
+            log_info "State updated to match installed hostname: ${file_host}"
+            ;;
+        "Use recorded"*)
+            printf '%s\n' "${state_host}" > "${ROOT}/etc/hostname"
+            log_info "Wrote recorded hostname to /etc/hostname: ${state_host}"
+            ;;
+    esac
+}

@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 repair_pacman() {
-    if ! artix-chroot /mnt true &>/dev/null; then
+    if ! artix-chroot "${ROOT}" true &>/dev/null; then
         log_warn "Chroot environment not available — skipping pacman repairs"
         return 0
     fi
@@ -13,7 +13,7 @@ repair_pacman() {
     if [[ "${issues}" =~ stale-lock ]]; then
         log_warn "Pacman lock found."
         if tui_yesno "Remove lock" "Remove stale pacman lock?"; then
-            rm -f /mnt/var/lib/pacman/db.lck
+            rm -f "${ROOT}/var/lib/pacman/db.lck"
             log_info "Lock removed."
         fi
     fi
@@ -21,9 +21,10 @@ repair_pacman() {
     if [[ "${issues}" =~ base-missing ]]; then
         log_warn "Base system packages missing or corrupted."
         if tui_yesno "Reinstall base" "Reinstall base packages?"; then
-            if ! basestrap /mnt base base-devel 2>/dev/null; then
+            if ! basestrap "${ROOT}" base base-devel 2>/dev/null; then
                 log_warn "basestrap failed — trying direct pacman install..."
-                pacman --root /mnt --cachedir /mnt/var/cache/pacman/pkg -S --noconfirm base base-devel 2>/dev/null || \
+                pacman --root "${ROOT}" --cachedir "${ROOT}/var/cache/pacman/pkg" \
+                    -S --noconfirm base base-devel 2>/dev/null || \
                     log_warn "Base reinstall failed. Try 'Fix everything' from the recovery menu."
             fi
             log_info "Base packages reinstalled."
@@ -47,12 +48,13 @@ repair_pacman() {
                     if [[ ${i} -ge 20 ]]; then
                         local batch_size=${#batch[@]}
                         log_info "  Batch: ${batch[*]}"
-                        if pacman --root /mnt --cachedir /mnt/var/cache/pacman/pkg -S --noconfirm --overwrite '*' "${batch[@]}" 2>/dev/null; then
+                        if pacman --root "${ROOT}" --cachedir "${ROOT}/var/cache/pacman/pkg" \
+                                -S --noconfirm --overwrite '*' "${batch[@]}" 2>/dev/null; then
                             ((success += batch_size))
                         else
                             log_warn "  Batch failed — trying individually..."
                             for b in "${batch[@]}"; do
-                                if pacman --root /mnt -S --noconfirm --overwrite '*' "${b}" 2>/dev/null; then
+                                if pacman --root "${ROOT}" -S --noconfirm --overwrite '*' "${b}" 2>/dev/null; then
                                     ((success++))
                                 else
                                     log_warn "  Failed: ${b}"
@@ -67,11 +69,12 @@ repair_pacman() {
                 if [[ ${#batch[@]} -gt 0 ]]; then
                     local batch_size=${#batch[@]}
                     log_info "  Final batch: ${batch[*]}"
-                    if pacman --root /mnt --cachedir /mnt/var/cache/pacman/pkg -S --noconfirm --overwrite '*' "${batch[@]}" 2>/dev/null; then
+                    if pacman --root "${ROOT}" --cachedir "${ROOT}/var/cache/pacman/pkg" \
+                            -S --noconfirm --overwrite '*' "${batch[@]}" 2>/dev/null; then
                         ((success += batch_size))
                     else
                         for b in "${batch[@]}"; do
-                            if pacman --root /mnt -S --noconfirm --overwrite '*' "${b}" 2>/dev/null; then
+                            if pacman --root "${ROOT}" -S --noconfirm --overwrite '*' "${b}" 2>/dev/null; then
                                 ((success++))
                             else
                                 log_warn "  Failed: ${b}"
@@ -85,6 +88,46 @@ repair_pacman() {
                 log_info "No broken package list saved — skipping"
             fi
             log_info "Broken package repair completed."
+        fi
+    fi
+
+    if [[ "${issues}" =~ partial-downloads:([0-9]+) ]]; then
+        local count="${BASH_REMATCH[1]}"
+        log_warn "${count} partial download(s) found in pacman cache."
+        if tui_yesno "Partial Downloads" "Remove ${count} partial .part file(s)?"; then
+            find "${ROOT}/var/cache/pacman/pkg" -maxdepth 1 -name '*.part' -delete
+            log_info "Removed partial downloads."
+        fi
+    fi
+
+    if [[ "${issues}" =~ incomplete-packages:([0-9]+) ]]; then
+        local count="${BASH_REMATCH[1]}"
+        log_warn "${count} package(s) with incomplete metadata."
+        if tui_yesno "Incomplete Packages" "List and reinstall them?"; then
+            local pkgdir pkgname
+            local -a broken_meta=()
+            for pkgdir in "${ROOT}"/var/lib/pacman/local/*/; do
+                [[ -d "${pkgdir}" ]] || continue
+                [[ -f "${pkgdir}/desc" ]] || continue
+                if [[ ! -f "${pkgdir}/files" ]]; then
+                    pkgname=$(basename "${pkgdir}")
+                    broken_meta+=("${pkgname%-*-*}")
+                fi
+            done
+            if [[ ${#broken_meta[@]} -gt 0 ]]; then
+                log_info "Reinstalling: ${broken_meta[*]}"
+                pacman --root "${ROOT}" --cachedir "${ROOT}/var/cache/pacman/pkg" \
+                    -S --noconfirm "${broken_meta[@]}" 2>/dev/null || \
+                    log_warn "Reinstall failed — try refreshing mirrors and retry"
+            fi
+        fi
+    fi
+
+    if [[ "${issues}" =~ interrupted-transaction ]]; then
+        log_warn "Last pacman transaction did not complete."
+        if tui_yesno "Interrupted Upgrade" "Re-sync databases and reinstall half-updated packages?"; then
+            artix-chroot "${ROOT}" pacman -Syu --noconfirm || \
+                log_warn "Full upgrade failed — check output above"
         fi
     fi
 }

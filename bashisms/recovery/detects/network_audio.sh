@@ -93,3 +93,52 @@ detect_ucode() {
         state_set CPU_UCODE none
     fi
 }
+
+detect_dns_health() {
+    local issues=""
+
+    if [[ ! -f "${ROOT}/etc/resolv.conf" ]]; then
+        issues+="no-resolv-conf "
+    elif [[ -L "${ROOT}/etc/resolv.conf" ]]; then
+        local target
+        target=$(readlink "${ROOT}/etc/resolv.conf")
+        if [[ ! -e "${ROOT}${target}" && ! -e "${target}" ]]; then
+            issues+="broken-resolv-symlink:${target} "
+        fi
+    elif ! grep -qE '^nameserver ' "${ROOT}/etc/resolv.conf" 2>/dev/null; then
+        issues+="no-nameserver "
+    fi
+
+    if [[ ! -f "${ROOT}/etc/hosts" ]]; then
+        issues+="no-etc-hosts "
+    else
+        grep -qE '^127\.0\.0\.1\s+localhost' "${ROOT}/etc/hosts" || issues+="hosts-no-localhost "
+        grep -qE '^::1\s+localhost' "${ROOT}/etc/hosts" || issues+="hosts-no-ipv6-localhost "
+    fi
+
+    state_set DNS_ISSUES "${issues:-none}"
+}
+
+detect_hostname_drift() {
+    local file_hostname state_hostname
+
+    if [[ -f "${ROOT}/etc/hostname" ]]; then
+        file_hostname=$(tr -d '[:space:]' < "${ROOT}/etc/hostname")
+    else
+        state_set HOSTNAME_DRIFT "no-hostname-file"
+        return 0
+    fi
+
+    state_hostname=$(state_get HOSTNAME "")
+
+    if [[ -z "${state_hostname}" ]]; then
+        state_set HOSTNAME_DRIFT "none"
+        return 0
+    fi
+
+    if [[ "${file_hostname}" != "${state_hostname}" ]]; then
+        state_set HOSTNAME_DRIFT "file=${file_hostname},state=${state_hostname}"
+    else
+        state_set HOSTNAME_DRIFT "none"
+    fi
+}
