@@ -18,6 +18,7 @@ The installer runs entirely on your local machine. It does not:
 | Stage progress markers | `/tmp/artix-installer/stages/` | Deleted on reboot (tmpfs) |
 | User password hashes | `/tmp/artix-installer/state.conf` (yescrypt `$y$` hash, SHA-512 crypt `$6$` fallback) | Deleted on reboot (tmpfs) |
 | LUKS passphrase | Memory only, never written to disk | Gone when installer exits |
+| LUKS keyfile | `/crypto_keyfile.bin` inside the initramfs | On BIOS installs, inside the encrypted root. On UEFI installs with a UKI, inside the UKI on the unencrypted ESP — extractable by anyone with physical disk access. `chmod 000` on the file itself. |
 | Target system config | `/mnt/etc/artix-installer.conf` | Shredded or removed during finalize stage |
 | Quick Profile save | `/mnt/etc/artixforge-profile.conf` | Remains on installed system for reuse |
 | Installer log | `/mnt/var/log/artix-installer.log` | Remains on the installed system for debugging |
