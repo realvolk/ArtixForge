@@ -1,5 +1,28 @@
 # Changelog
 
+## v9.5.1.0 (2026-09-19) — Artix Installer
+
+### Fixed
+- **BTRFS standard/snapshot layouts installed to the wrong subvolume** — the storage stage created `@` and `@home` but then attempted to switch the mount with `mount -o remount,...,subvol=@`. BTRFS silently ignores `subvol=` on remount, so `/mnt` stayed at the top-level subvolume for the entire install. At boot the initramfs mounted an empty `@`, `/sbin/init` didn't exist, and the system dropped to emergency shell with `ERROR: Root device mounted successfully, but /sbin/init does not exist.` Reported in #30.
+
+### Added
+- **`detect_btrfs_subvol_health`** in `bashisms/recovery/detects/system.sh` — detects the v9.5.1.0 bug class on already-installed systems by comparing the boot cmdline's `rootflags=subvol=` against where `/etc/passwd` actually lives.
+- **`repair_btrfs_subvolume`** in `bashisms/recovery/repairs/system.sh` — offers two repair strategies for the detected mismatch: move the top-level files into the expected subvolume, or strip `rootflags=subvol=` from the boot cmdline.
+### Changed
+- **`repair_seat_manager`** in `bashisms/recovery/repairs/system.sh` now uses a recovery-scoped `recovery_enable_service` instead of the installer's `enable_service`.
+- **`repair_boot`** in `bashisms/recovery/repairs/system.sh` dispatches `btrfs-wrong-subvolume` before `repair_seat_manager`.
+- **`_kernel_pkg`** in `bashisms/recovery/repairs/system.sh` now reads `KERNEL_PACKAGES` and `resolve_kernel_headers` from the package catalog instead of maintaining its own case statement.
+- **`repair_boot`'s `no-kernel` path** now warns explicitly when the selected kernel has no installable package instead of silently no-op'ing.
+- **`repair_migration`** in `bashisms/recovery/repairs/migration_iso.sh` uses an explicit `keep_dir` map for the correct init instead of the previous glob comparison, and always operates on `${ROOT}` paths.
+- **`advanced.sh`, `migration_iso.sh`, and `system.sh`** now initialize `ROOT="${ROOT:-/mnt}"` and use `${ROOT}` uniformly.
+- **`service_exists`** in `bashisms/recovery/core.sh` now takes an init-aware service name and checks the correct per-init directory under `${ROOT}`.
+- **`recovery_mount_all`** now reuses an existing `/mnt` mount instead of failing on a second invocation, and detects the ESP by reading the target's fstab (UUID or device path) or scanning the root disk's partitions for vfat.
+- **LUKS unlock prompt in `recovery_mount_all`** treats a cancelled passphrase prompt as "skip this container" instead of aborting the whole recovery, matching the existing behavior on wrong passphrase.
+
+### Removed
+- **Duplicate `_kernel_pkg`** in `bashisms/recovery/repair.sh` — it shadowed the catalog-driven version now in `repairs/system.sh`, and its case statement was the one that had drifted from the catalog.
+- **Duplicate `detect_seat_manager`** in `bashisms/recovery/detects/desktop.sh` — the fuller version in `detects/system.sh` (which also checks init-specific service enablement and sets `SEAT_MANAGER_DISABLED`) is now the only one.
+
 ## v9.5.0.8 (2026-09-17) — Artix Installer
 
 ### Changed

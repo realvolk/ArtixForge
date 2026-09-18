@@ -297,6 +297,7 @@ reconstruct_state_from_system() {
     detect_install_stage
     detect_fstab_health
     detect_boot_health
+    detect_btrfs_subvol_health
     detect_pacman_health
     if tui_yesno "Extended Detection" "Run extended checks for INIT migration issues or broken ISO builds?"; then
         detect_migration_health

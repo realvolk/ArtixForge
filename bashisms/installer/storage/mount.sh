@@ -61,8 +61,14 @@ _mount_root() {
                 fi
             done
 
-            mount -o remount,noatime,compress=zstd,subvol=@ "${root_part}" /mnt
-            mountpoint -q /mnt || die 'failed to remount root filesystem with subvol'
+            umount /mnt || die 'failed to unmount /mnt before subvol remount'
+            mount -o noatime,compress=zstd,subvol=@ "${root_part}" /mnt \
+                || die 'failed to remount /mnt with subvol=@'
+
+            local actual_subvol
+            actual_subvol=$(findmnt -no OPTIONS /mnt | grep -oP 'subvol=/\K[^,]*' || echo "")
+            [[ "${actual_subvol}" == "@" ]] \
+                || die "btrfs subvol mount failed: got '${actual_subvol:-none}', expected '@'"
 
             case "${btrfs_layout}" in
                 flat) ;;

@@ -214,3 +214,31 @@ detect_iso_health() {
     
     state_set ISO_ISSUES "${issues:-none}"
 }
+
+detect_btrfs_subvol_health() {
+    [[ "$(state_get FS_TYPE)" == "btrfs" ]] || return 0
+
+    local cmdline_subvol
+    cmdline_subvol=$(grep -oP 'rootflags=subvol=\K[^ ]*' \
+        "${ROOT}/etc/default/grub" 2>/dev/null | head -n1)
+
+    if [[ -z "${cmdline_subvol}" ]]; then
+        cmdline_subvol=$(grep -oP 'rootflags=subvol=\K[^ ]*' \
+            "${ROOT}/etc/kernel/cmdline" 2>/dev/null | head -n1)
+    fi
+
+    [[ -n "${cmdline_subvol}" ]] || return 0
+
+    if [[ -f "${ROOT}/${cmdline_subvol}/etc/passwd" ]]; then
+        return 0
+    fi
+
+    if [[ -f "${ROOT}/etc/passwd" ]]; then
+        local issues
+        issues="$(state_get BOOT_ISSUES none)"
+        [[ "${issues}" == "none" ]] && issues=""
+        issues+="btrfs-wrong-subvolume:expected=${cmdline_subvol},files-at-toplevel "
+        state_set BOOT_ISSUES "${issues}"
+        log_warn "btrfs: system is at the top level, but cmdline expects subvol=${cmdline_subvol}"
+    fi
+}
