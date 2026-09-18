@@ -4,6 +4,11 @@ set -Eeuo pipefail
 readonly ROOT="/mnt"
 
 recovery_mount_all() {
+    if mountpoint -q /mnt; then
+        log_info "/mnt already mounted — reusing existing mount"
+        return 0
+    fi
+
     local -a luks_parts=()
     local part
     while IFS= read -r part; do
@@ -22,7 +27,10 @@ recovery_mount_all() {
             fi
             if tui_yesno "Unlock LUKS" "Unlock ${part}?"; then
                 local pass=""
-                pass=$(tui_password "LUKS Passphrase" "Enter passphrase for ${part}:") || die "LUKS unlock cancelled"
+                if ! pass=$(tui_password "LUKS Passphrase" "Enter passphrase for ${part}:"); then
+                    log_warn "Skipped ${part}"
+                    continue
+                fi
                 printf '%s' "${pass}" | cryptsetup luksOpen "${part}" "${mapper_name}" - || {
                     log_warn "Failed to unlock ${part} – wrong passphrase?"
                     continue
@@ -87,29 +95,57 @@ recovery_mount_all() {
     mount "${root_candidate}" /mnt || die "Failed to mount root"
 
     local esp=""
-    for candidate in /dev/sda1 /dev/nvme0n1p1 /dev/vda1; do
-        if [[ -b "${candidate}" ]] && blkid -o value -s TYPE "${candidate}" 2>/dev/null | grep -qi 'vfat'; then
-            esp="${candidate}"
-            break
+    if [[ -f "${ROOT}/etc/fstab" ]]; then
+        local fstab_esp
+        fstab_esp=$(awk '$3 == "vfat" {print $1; exit}' "${ROOT}/etc/fstab")
+        if [[ "${fstab_esp}" == UUID=* ]]; then
+            esp="$(blkid -U "${fstab_esp#UUID=}" 2>/dev/null || true)"
+        elif [[ -b "${fstab_esp}" ]]; then
+            esp="${fstab_esp}"
         fi
-    done
-    if [[ -n "${esp}" ]]; then
-        mkdir -p /mnt/boot/efi
-        mount "${esp}" /mnt/boot/efi || log_warn "Failed to mount ESP"
     fi
 
-    mkdir -p /mnt/dev /mnt/proc /mnt/sys
-    mount --bind /dev /mnt/dev || true
-    mount --bind /proc /mnt/proc || true
-    mount --bind /sys /mnt/sys || true
+    if [[ -z "${esp}" ]]; then
+        local root_disk
+        root_disk=$(lsblk -no PKNAME "${root_candidate}" 2>/dev/null | head -n1)
+        if [[ -n "${root_disk}" ]]; then
+            while IFS= read -r name; do
+                [[ -z "${name}" ]] && continue
+                local candidate_dev="/dev/${name}"
+                if blkid -o value -s TYPE "${candidate_dev}" 2>/dev/null | grep -qi 'vfat'; then
+                    esp="${candidate_dev}"
+                    break
+                fi
+            done < <(lsblk -no NAME "/dev/${root_disk}" | tail -n +2)
+        fi
+    fi
+
+    if [[ -n "${esp}" ]]; then
+        local esp_mount=""
+        if [[ -d "${ROOT}/boot/efi" ]] || [[ ! -d "${ROOT}/efi" ]]; then
+            esp_mount="${ROOT}/boot/efi"
+        else
+            esp_mount="${ROOT}/efi"
+        fi
+        mkdir -p "${esp_mount}"
+        mount "${esp}" "${esp_mount}" || log_warn "Failed to mount ESP at ${esp_mount}"
+        log_info "Mounted ESP ${esp} at ${esp_mount}"
+    else
+        log_warn "No ESP detected — UEFI boot repair may not work"
+    fi
+
+    mkdir -p "${ROOT}/dev" "${ROOT}/proc" "${ROOT}/sys"
+    mount --bind /dev "${ROOT}/dev" || true
+    mount --bind /proc "${ROOT}/proc" || true
+    mount --bind /sys "${ROOT}/sys" || true
 
     if [[ -f /etc/resolv.conf ]]; then
-        cp /etc/resolv.conf /mnt/etc/resolv.conf || true
+        cp /etc/resolv.conf "${ROOT}/etc/resolv.conf" || true
     fi
 
     if [[ -d /sys/firmware/efi/efivars ]]; then
-        mkdir -p /mnt/sys/firmware/efi
-        mount --bind /sys/firmware/efi/efivars /mnt/sys/firmware/efi/efivars 2>/dev/null || true
+        mkdir -p "${ROOT}/sys/firmware/efi"
+        mount --bind /sys/firmware/efi/efivars "${ROOT}/sys/firmware/efi/efivars" 2>/dev/null || true
     fi
 
     log_info "Mounted ${root_candidate} at /mnt with ESP."
@@ -148,8 +184,56 @@ pacman_root_has() {
 }
 
 service_exists() {
-    local path="${1}"
-    [[ -e "${ROOT}/${path}" ]]
+    local service="${1}"
+    [[ -n "${service}" ]] || return 1
+
+    local init
+    init="$(state_get INIT openrc)"
+
+    case "${init}" in
+        openrc) [[ -e "${ROOT}/etc/init.d/${service}" ]] ;;
+        runit)  [[ -d "${ROOT}/etc/runit/sv/${service}" ]] ;;
+        dinit)  [[ -e "${ROOT}/etc/dinit.d/${service}" ]] ;;
+        s6)     [[ -d "${ROOT}/etc/s6/sv/${service}" ]] ;;
+        *)      return 1 ;;
+    esac
+}
+
+recovery_enable_service() {
+    local svc="${1}"
+    local init
+    init="$(state_get INIT openrc)"
+
+    case "${init}:${svc}" in
+        dinit:logind) svc="elogind" ;;
+        dinit:dbus)   svc="dbus" ;;
+    esac
+
+    case "${init}" in
+        openrc)
+            [[ -f "${ROOT}/etc/init.d/${svc}" ]] || return 1
+            mkdir -p "${ROOT}/etc/runlevels/default"
+            ln -sf "/etc/init.d/${svc}" "${ROOT}/etc/runlevels/default/${svc}"
+            ;;
+        runit)
+            [[ -d "${ROOT}/etc/runit/sv/${svc}" ]] || return 1
+            mkdir -p "${ROOT}/etc/runit/runsvdir/default"
+            ln -sf "/etc/runit/sv/${svc}" "${ROOT}/etc/runit/runsvdir/default/${svc}"
+            ;;
+        dinit)
+            [[ -f "${ROOT}/etc/dinit.d/${svc}" ]] || return 1
+            mkdir -p "${ROOT}/etc/dinit.d/boot.d"
+            ln -sf "../${svc}" "${ROOT}/etc/dinit.d/boot.d/${svc}"
+            ;;
+        s6)
+            [[ -d "${ROOT}/etc/s6/sv/${svc}" ]] || return 1
+            artix-chroot "${ROOT}" s6-rc-bundle-update add default "${svc}" 2>/dev/null || return 1
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+    return 0
 }
 
 recovery_get_status() {
@@ -184,6 +268,7 @@ reconstruct_state_from_system() {
     validate_recovery_root
     detect_boot_mode
     detect_disk
+    detect_luks
     detect_init
     detect_filesystem
     detect_zfs
@@ -202,7 +287,6 @@ reconstruct_state_from_system() {
     detect_extras
     detect_repositories
     detect_username
-    detect_luks
     detect_display_protocol
     detect_nvidia
     detect_virtualization

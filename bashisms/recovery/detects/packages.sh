@@ -2,18 +2,8 @@
 set -Eeuo pipefail
 
 detect_extras() {
-    local extras=()
-    local -a pkg_list=(
-        git flatpak fastfetch firewalld bluez
-        fzf zoxide starship eza btop htop nvtop tmux usb_modeswitch rsvc
-        nano vim neovim micro helix
-        firefox chromium qutebrowser
-        ranger lf nnn thunar
-        alacritty kitty foot
-        mpv feh
-    )
-
-    for pkg in "${pkg_list[@]}"; do
+    local extras=() pkg
+    for pkg in "${EXTRA_PACKAGES[@]}"; do
         pacman_root_has "${pkg}" && extras+=("${pkg}")
     done
 
