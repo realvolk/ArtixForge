@@ -10,6 +10,8 @@ repair_detected_issues() {
     pacman_issues=$(state_get PACMAN_ISSUES none)
     migration_issues=$(state_get MIGRATION_ISSUES none)
     iso_issues=$(state_get ISO_ISSUES none)
+    dns_issues=$(state_get DNS_ISSUES none)
+    hostname_drift=$(state_get HOSTNAME_DRIFT none)
 
     local did_something=0
 
@@ -22,6 +24,18 @@ repair_detected_issues() {
     if [[ "${pacman_issues}" != "none" ]]; then
         log_info "Pacman issues detected: ${pacman_issues}"
         repair_pacman
+        did_something=1
+    fi
+
+    if [[ "${dns_issues}" != "none" ]]; then
+        log_info "DNS issues detected: ${dns_issues}"
+        repair_dns
+        did_something=1
+    fi
+
+    if [[ "${hostname_drift}" != "none" && "${hostname_drift}" != "no-hostname-file" ]]; then
+        log_info "Hostname drift detected: ${hostname_drift}"
+        repair_hostname_drift
         did_something=1
     fi
 
