@@ -2,10 +2,9 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in ArtixForge, please report it privately
-to **realvolk** via a private GitHub security advisory or email.
-
-Do not open a public issue for security issues.
+If you discover a security vulnerability in Artix Installer, please report it
+privately to **realvolk** via a private GitHub security advisory. Do not open a
+public issue for security issues.
 
 ## Supported Versions
 
@@ -23,7 +22,7 @@ Security concerns include, but are not limited to:
 - Unsafe handling of LUKS passphrases (storage in memory, passing to `cryptsetup`)
 - LUKS + LVM combinations where encryption boundaries are incorrectly configured
 - LUKS containers created without proper formatting (`luksFormat` bypass)
-- LUKS keyfile exposure — keyfile stored in initramfs on encrypted partition, never on unencrypted storage
+- LUKS keyfile exposure — the keyfile is embedded in the initramfs with `chmod 000` permissions. On BIOS installs the initramfs lives inside the encrypted root and the keyfile is protected by LUKS. On UEFI installs with a UKI, the initramfs is embedded in the UKI on the unencrypted ESP and the keyfile is extractable by anyone with physical disk access. Secure Boot prevents tampering with the UKI but not extraction of the keyfile
 - Privilege escalation within the installer or the resulting system
 - Unsafe package downloads (missing or weak checksum verification)
 - Source-compiled packages that introduce vulnerabilities via untrusted upstream sources
@@ -55,12 +54,25 @@ Security concerns include, but are not limited to:
 - Password handling — user and root passwords are hashed with yescrypt (`$y$`) via `mkpasswd` before being stored to `state.conf`, with a fallback to SHA-512 crypt (`$6$`) via `openssl passwd -6` if `mkpasswd` is unavailable. Plaintext passwords never touch the state file or disk. LUKS passphrases are stored plaintext (required by `cryptsetup`) in the state file, which lives on tmpfs and is lost on reboot
 - Bug report tarball — contains install log, state file, debug trace, post-stage log, and retry log. State file may contain password hashes and LUKS passphrases. The tarball is written to `/tmp` with default permissions and the user is warned to include it only when reporting issues
 
+## What we do not claim
+
+Artix Installer does not protect against:
+
+- A local adversary with root access on the live ISO. Every operation the installer performs is available to anyone with root in the live environment.
+- Physical access to an unencrypted ESP on UEFI installs. The keyfile is on unencrypted storage and is extractable by anyone who can read the disk.
+- Compromised upstream mirrors. Package integrity relies on pacman's signature verification and the trust chain to the distribution's keyring.
+- Malicious packages installed by the user after installation.
+- Malicious `POST_INSTALL_SCRIPT` or `POST_INSTALL_ONESHOT` content. The installer runs user-provided code as root without inspection.
+- Malicious dotfiles repositories. The installer clones and installs user-provided URLs without inspection.
+
+The installer assumes the user is installing a system they control on hardware they trust, and that any external content they explicitly provide (scripts, dotfiles, package sources) is content they have vetted.
+
 ## Best Practices
 
-- ArtixForge never writes plaintext passwords to disk. Passwords are hashed with yescrypt (`$y$`) via `mkpasswd` before being passed to the target system, matching Artix's own `passwd`/PAM default. Fallback to SHA-512 crypt (`$6$`) via `openssl passwd -6` occurs only if `mkpasswd` is unavailable.
+- Artix Installer never writes plaintext passwords to disk. Passwords are hashed with yescrypt (`$y$`) via `mkpasswd` before being passed to the target system, matching Artix's own `passwd`/PAM default. Fallback to SHA-512 crypt (`$6$`) via `openssl passwd -6` occurs only if `mkpasswd` is unavailable.
 - LUKS passphrases are held in memory only during the installation and are not persisted.
 - LUKS containers are properly formatted with `luksFormat --type luks2 --pbkdf pbkdf2` for GRUB compatibility.
-- LUKS keyfile (`/crypto_keyfile.bin`) is embedded in initramfs with `chmod 000` permissions. It resides only in the initramfs image on the encrypted root partition and is never written to unencrypted storage.
+- LUKS keyfile (`/crypto_keyfile.bin`) is embedded in the initramfs with `chmod 000` permissions. On BIOS installs the initramfs lives inside the encrypted root and the keyfile is protected by LUKS. On UEFI installs with a UKI, the keyfile is embedded in the UKI on the unencrypted ESP and is extractable by anyone with physical disk access. The installer displays a security warning before enabling the keyfile on UEFI installs; users who require protection against physical disk theft should decline it. Secure Boot prevents tampering with the UKI but does not prevent extraction of the keyfile.
 - Recipe sources should use verified checksums. The `SKIP` placeholder is for development only and should never appear in published recipes.
 - Recipe self-healing only fetches version information from the same upstream domain as the original recipe source. New URLs are not blindly trusted.
 - The installer does not expose network services during installation. Any network configuration (WiFi passwords, static IPs) is applied to the target system, not the live environment.

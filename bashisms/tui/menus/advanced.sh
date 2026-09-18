@@ -1,18 +1,70 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+tui_keyfile_security_warning() {
+    local boot_mode
+    boot_mode="$(state_get ARTIX_BOOT_MODE uefi)"
+
+    [[ "${boot_mode}" == "uefi" ]] || return 0
+
+    tui_msg "Security Warning — Keyfile on UEFI" \
+"On UEFI installs, the ESP must be unencrypted so the firmware
+can read the bootloader. The keyfile is embedded in the UKI,
+which lives on the ESP.
+
+This means the keyfile is on UNENCRYPTED storage.
+
+Anyone with physical access to this disk can:
+  • Mount the ESP from another system (FAT32, no encryption)
+  • Extract the keyfile from the UKI
+  • Unlock your LUKS container
+
+Secure Boot prevents tampering with the UKI, but NOT extraction
+of the keyfile. Full-disk encryption does not protect against a
+physical attacker when the keyfile is on the ESP.
+
+On BIOS installs, /boot is inside the encrypted container and the
+keyfile is protected by LUKS. On UEFI, it is not.
+
+If you want protection against physical disk theft, DECLINE the
+keyfile and type your passphrase at each boot instead."
+
+    if ! tui_yesno "Proceed with Keyfile" \
+"Use a keyfile anyway? (declining means typing your passphrase at each boot)"; then
+        state_set LUKS_KEYFILE no
+        log_info "LUKS keyfile declined — passphrase will be required at boot"
+        return 1
+    fi
+    return 0
+}
+
 tui_select_luks() {
     if tui_yesno "Disk Encryption" "Enable LUKS full disk encryption?"; then
         state_set USE_LUKS "yes"
         local pass
-        pass=$(tui_password_confirm "LUKS Passphrase" "Enter passphrase:" "Confirm passphrase:") || return 1
+        if ! pass=$(tui_password_confirm "LUKS Passphrase" "Enter passphrase:" "Confirm passphrase:"); then
+            tui_msg_quick "LUKS Cancelled" "No encryption will be applied."
+            state_set USE_LUKS "no"
+            state_set LUKS_PASS ""
+            state_set LUKS_KEYFILE "no"
+            state_set LUKS_KEYFILE_PATH ""
+            log_warn "LUKS setup cancelled — continuing without encryption"
+            return 0
+        fi
         state_set LUKS_PASS "${pass}"
-        
+
         if tui_yesno "LUKS Keyfile" "Use a keyfile to avoid typing your password twice at boot?"; then
-            state_set LUKS_KEYFILE "yes"
+            if tui_keyfile_security_warning; then
+                state_set LUKS_KEYFILE "yes"
+            fi
+        else
+            state_set LUKS_KEYFILE "no"
         fi
     else
         state_set USE_LUKS "no"
+        state_set LUKS_PASS ""
+        state_set LUKS_KEYFILE "no"
+        state_set LUKS_KEYFILE_PATH ""
     fi
 
     if tui_yesno "LVM" "Enable Logical Volume Management (LVM)?"; then
