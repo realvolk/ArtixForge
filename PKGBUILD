@@ -7,11 +7,12 @@ pkgdesc="Modular TUI installer framework for Artix Linux"
 arch=('any')
 url="https://github.com/realvolk/ArtixForge"
 license=('custom:IRX License 1.0')
-depends=('bash' 'gum' 'git' 'curl' 'openssl' 'rsync' 'coreutils' 'jq' 'iso-profiles')
+depends=('bash' 'gum' 'git' 'curl' 'openssl' 'rsync' 'coreutils' 'jq' 'iso-profiles' 'whois')
 optdepends=(
     'pacman-contrib: mirror ranking support'
     'artools: ISO build support'
     'gpg: encrypted state presets'
+    'eukify: Unified Kernel Image (UKI) generation'
 )
 makedepends=('git')
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/realvolk/ArtixForge/archive/refs/tags/v${pkgver}.tar.gz")
