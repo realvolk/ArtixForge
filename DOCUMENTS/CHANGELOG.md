@@ -1,5 +1,10 @@
 # Changelog
 
+## v9.5.1.1 (2026-09-27) — Artix Installer
+
+### Fixed
+- **Installer never generated `/etc/fstab`** — six months of development, dozens of bugs fixed, every storage configuration tested except one, and nobody noticed that the installer never called `fstabgen`, not even me. Root, home, swap, ESP, and every BTRFS subvolume were mounted correctly during install, so every configuration that only needed `/` mounted at boot worked fine. The one exception was BTRFS `snapshot` layout: `@log`, `@pkg`, and `@snapshots` require fstab entries to be mounted at boot, and without them the system quietly fell back to directories on `@`. The symptom was reported as a `dbus-pre` logging failure (issue #36) because `dinit-rc`'s `/var/log/dinit/` directory was being written to `@log` during install and then hidden by the missing mount at boot. Fixed by calling `fstabgen -U "${ROOT}"` at the top of `stage_chroot`, guarded by a check for existing non-comment entries so resume installs don't regenerate an already-correct fstab.
+
 ## v9.5.1.0 (2026-09-18) — Artix Installer
 
 ### Fixed
