@@ -10,9 +10,9 @@ public issue for security issues.
 
 | Version | Supported |
 |---------|-----------|
-| v9.5.1.0 | Latest Commits |
-| v9.5.0.6 | Latest Stable release |
-| < v9.5.0.6 | No |
+| v9.5.1.1 | Latest Commits |
+| v9.5.1.0 | Latest Stable release |
+| < v9.5.1.0 | No |
 
 ## Scope
 

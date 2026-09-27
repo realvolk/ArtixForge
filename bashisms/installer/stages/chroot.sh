@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+_generate_fstab() {
+    local fstab="${ROOT}/etc/fstab"
+
+    local entry_count
+    entry_count=$(grep -cvE '^[[:space:]]*(#|$)' "${fstab}" 2>/dev/null || echo 0)
+
+    if [[ "${entry_count}" -gt 0 ]]; then
+        log_info "fstab already populated — skipping generation"
+        return 0
+    fi
+
+    log_info "Generating /etc/fstab..."
+    fstabgen -U "${ROOT}" > "${fstab}"
+    log_info "fstab generated."
+}
+
 stage_chroot() {
     if stage_should_skip chroot; then return 0; fi
     stage_require_chroot || die "chroot environment is not ready"
@@ -39,6 +55,8 @@ stage_chroot() {
             warn_collect "BusyBox binary not found in target — init may have failed to build"
         fi
     fi
+
+    _generate_fstab
 
     if ! configure_system; then
         log_error "System configuration failed."
