@@ -33,6 +33,8 @@ The installer runs entirely on your local machine. It does not:
 | Encrypted state presets | `presets/*.enc` | GPG symmetric (AES256); decrypted only in memory or temp files when loaded |
 | Bug report tarball | `/tmp/artixforge-bugreport-*.tar.gz` | Contains install log, state, debug trace, post-stage log, retry log. Stays in /tmp until user deletes or reboot (tmpfs) |
 | Host-side logs (debug, post-stage, retry) | `/tmp/artix-installer/logs/` | Deleted on reboot (tmpfs) |
+| Hub IN files | `/tmp/artix-installer/hub-in.*` | Form definitions for the hub; `mktemp`-created (mode 0600); deleted after each hub invocation |
+| Hub OUT files | `/tmp/artix-installer/hub-out.*` | Collected form answers; `mktemp`-created (mode 0600); may contain passwords; read into `state.conf` then deleted |
 | Post-install script copy | `/root/<script>` on target system | Remains on installed system; user must delete manually if sensitive |
 | One-shot service command | Per-init service file on target system | Self-destructs on success; retries on failure |
 | Per-user dotfiles | `~/.config` and home directory | Cloned from user-provided URL; remains in user home |
@@ -95,8 +97,15 @@ Per-user dotfiles repositories (`USER_${i}_DOTFILES`) are cloned from the URL
 the user provides. This is the same as running `git clone` manually — the remote
 server sees the same request it would see from any git client.
 
-**gum:** the TUI toolkit makes no network connections. Interactive widgets run
-locally via `/dev/tty`. No data leaves the process.
+**tui (lapka):** the TUI toolkit makes no network connections. Interactive
+widgets run locally via `/dev/tty`. No data leaves the process.
+
+**tui binary fetch:** if the vendored `tui` binary is absent, the installer
+downloads it over HTTPS from `github.com/realvolk/lapka/releases`. This is
+the only network request the installer makes that is not a package manager
+or recipe-source operation. It happens once, only when the vendored binary
+is missing, and the download carries no telemetry or identifying information
+beyond a standard HTTP GET to GitHub.
 
 **anvil:** the Power User package manager makes network connections only for
 recipe downloads (`anvil sync`, `anvil fetch-recipe`, `anvil fetch-all`),

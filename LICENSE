@@ -1,0 +1,261 @@
+CLEAR License v1
+
+Copyright (c) 2026 realvolk (Volk)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+---
+
+Definitions
+
+For purposes of this License:
+
+"License" means the CLEAR License, version 1. Future versions of the CLEAR
+License do not automatically apply to the Software.
+
+"Software" means the source code and compiled artifacts of this software,
+and the associated documentation files. It does not include Independent
+Works produced by using the Software.
+
+"You" means the individual or entity exercising rights under this License.
+
+"Copyright Holder" means the original holder of copyright in the Software
+and any subsequent holder of copyright in the Software.
+
+"Contributor" means any person or entity that submits a contribution to
+the Software.
+
+"Contribution" means any code, documentation, or other material
+intentionally submitted by a Contributor for inclusion in the Software.
+
+"Material Modification" means any change that alters the functionality,
+behavior, or output of the Software, or any change that substantially
+rewrites or replaces the source code of the Software, even if the
+functionality, behavior, or output remains unchanged. Changes to
+configuration files, build flags, or documentation are not Material
+Modifications, even if they alter the behavior of the Software, provided
+they do not modify the source code of the Software.
+
+"Modified Version" means the Software as altered by a Material
+Modification.
+
+"Distribute" means to transfer, convey, publicly perform, or otherwise
+make available.
+
+"Distribute Publicly" means to Distribute the Software to any person or
+entity outside of Your organization, or to any person or entity not bound
+by confidentiality obligations to You.
+
+"Copyleft License" means a license that, as a condition of distribution
+of a work incorporating or modifying covered material, requires the
+distributor to license that work, or modified portions thereof, under the
+same or a compatible copyleft license, including the GNU General Public
+License (GPL), the GNU Lesser General Public License (LGPL), and the GNU
+Affero General Public License (AGPL).
+
+"Combined Work" means a single work that incorporates the Software and
+material from a work licensed under a Copyleft License in such a manner
+that the resulting work is treated as a combined or derivative work under
+applicable copyright law. Mere aggregation of separate and independent
+programs does not constitute a Combined Work.
+
+"Independent Work" means a work that uses the Software but is not a
+Modified Version of the Software, and that incorporates only the Software's
+generated output, compiled artifacts, or similar derived materials, without
+incorporating the Software's source code directly.
+
+"Project Name" means the name under which a version of the Software is
+distributed.
+
+---
+
+The rights granted in the opening paragraph of this License are subject to
+the conditions and restrictions set forth in the remainder of this License.
+Any sublicense granted under this License is subject to all terms of this
+License, including Section 11.
+
+---
+
+1. Attribution
+
+The above copyright notice and this License shall be included in all
+copies or substantial portions of the Software.
+
+2. Preservation of Authorship
+
+You may not misrepresent the origin of the Software. You must not claim
+or imply that the Software was created solely by You or Your
+organization.
+
+3. Modified Versions
+
+If You make a Material Modification to the Software, You must clearly
+indicate that changes were made. Modified Versions must not be presented
+as the original Software.
+
+Specifically:
+
+(a) You shall include a prominent notice in all copies of the Modified
+Version stating that the Software has been modified from its original
+version, including the name of the modifying party and the year of
+modification. This notice shall be placed in a file such as "NOTICE" or
+"MODIFICATIONS" included with the distribution, or in documentation
+accompanying the distribution. Notices required under this Section may be
+combined into a single notice listing all modifying parties, provided the
+notice clearly identifies that the Software has been modified from its
+original version and is not the original Software.
+
+(b) If You Distribute Publicly a Modified Version, You must either:
+
+(i) use a Project Name different from the Project Name of the version You
+modified, or
+
+(ii) prominently display a notice in all user-facing documentation and,
+where such notices are technically feasible given the nature of the
+Software, in the Software's user interface or, if the Software has no user
+interface, in its startup output or version text, stating that the version
+is modified and is not the original Software.
+
+The notice required by this subsection may be the same notice as that
+required by subsection (a).
+
+For purposes of this subsection, a Project Name that includes the Project
+Name of the version You modified, or a name confusingly similar to it,
+does not satisfy the requirement of a different Project Name.
+
+For purposes of this subsection, "user-facing documentation" means the
+primary documentation distributed with the Software, such as a README,
+manual, or help text.
+
+4. Names and Marks
+
+This License grants no rights to use the names, trademarks, logos, or
+project branding of the Copyright Holder or any Contributor, except as
+reasonably necessary for factual attribution as required by this License.
+Use of any such names, marks, or branding in any paid advertisement,
+sponsored promotion, or commercial endorsement of Modified Versions
+requires separate prior written permission from the respective owner.
+
+For the avoidance of doubt, factual statements of the form "based on
+CLEAR-licensed software by [Copyright Holder]" are permitted under this
+Section.
+
+5. Patent Grant
+
+The Copyright Holder and each Contributor grant You a perpetual,
+worldwide, non-exclusive, royalty-free, irrevocable (except as stated in
+this Section) patent license to make, have made, use, offer to sell, sell,
+import, and otherwise transfer the Software, where such license applies
+only to patent claims licensable by such party that are necessarily
+infringed by the Software, any Contribution, or any combination of the
+Software and any Contribution.
+
+If You institute patent litigation against any entity (including a
+cross-claim or counterclaim in a lawsuit) alleging that the Software or
+a Contribution incorporated within the Software constitutes direct or
+contributory patent infringement, then any patent licenses granted to
+You under this License for the Software shall terminate as of the date
+such litigation is filed. All other rights granted under this License
+shall remain unaffected.
+
+6. Contributions
+
+Contributors retain copyright in their Contributions. By submitting a
+Contribution, the Contributor grants the Copyright Holder a perpetual,
+worldwide, non-exclusive, royalty-free license to use, reproduce, modify,
+and distribute the Contribution under the terms of this License.
+
+Any Contribution intentionally submitted for inclusion in the Software
+by any person or entity shall be licensed under the terms of this
+License, unless the Contribution is submitted under different terms
+explicitly agreed to in writing by the original Copyright Holder. Such
+different terms apply only to that specific Contribution and not to the
+project as a whole. Any such different terms must be recorded in the
+project's documentation or in a separate file distributed with the
+Software, and shall survive any transfer of maintainership.
+
+7. Termination
+
+If You violate the terms of this License, Your rights under this License
+shall terminate automatically upon the expiration of a thirty (30) day
+cure period, unless You cure the violation within that period. The cure
+period begins on the earlier of: (a) the date You become aware, or
+reasonably should have become aware, of the violation, or (b) the date
+You receive written notice of the violation from the Copyright Holder.
+
+If the violation is cured within the cure period, Your rights under this
+License shall continue in full force and effect.
+
+Termination of rights under this License shall be effective as of the
+date the cure period expires without cure, and shall not be applied
+retroactively to any use, modification, or distribution that occurred
+prior to such date.
+
+Distribution that occurred prior to termination shall not constitute a
+violation of this License, provided such distribution complied with the
+terms of this License at the time it occurred.
+
+Termination applies only to the party in violation. All other licensees
+retain their rights under this License.
+
+Upon termination, the violating party shall cease distribution of the
+Software. Continued use of copies already in the violating party's
+possession shall be governed by applicable law.
+
+For the avoidance of doubt, upon termination, third parties who received
+the Software from the violating party prior to termination shall be
+deemed to have accepted a direct license from the Copyright Holder on
+the same terms as this License, provided such third parties are not
+themselves in violation of this License.
+
+8. Severability
+
+If any provision of this License is held to be unenforceable or invalid
+by a court of competent jurisdiction, such provision shall be severed
+from this License, and the remaining provisions shall remain in full
+force and effect. The invalidity or unenforceability of any provision
+shall not affect the rights granted in the opening paragraph of this
+License, nor the attribution requirements set forth in Sections 1, 2,
+3, and 4, nor the patent grant in Section 5, nor the contribution terms
+in Section 6, nor the termination and cure provisions in Section 7, nor
+the prohibition on copyleft combination in Section 11, which the
+Copyright Holder acknowledges are essential terms of this License.
+
+9. Optional Independent Work Clause
+
+This clause is not active by default. It applies only if the Copyright
+Holder has explicitly invoked it as described below.
+
+If the original Copyright Holder (or, if the original Copyright Holder
+has transferred their rights, the holder of the majority of copyright
+interests in the Software) explicitly states in the project's
+documentation, in a separate file (such as "LICENSE-EXCEPTIONS"), or in
+the Software itself (including but not limited to a source comment, a
+manifest file, or a clearly visible notice in the Software's output)
+that this clause applies, then use of the Software to create, build, or
+generate Independent Works does not, by itself, cause those Independent
+Works to be considered Modified Versions under this License. Attribution
+and other obligations under this License apply only to the Software
+itself, not to Independent Works created through its use.
+
+10. Disclaimer of Warranty and Limitation of Liability
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+11. No Copyleft Combination
+
+This License is a permissive license and is not compatible with Copyleft
+Licenses. You may not Distribute a Combined Work. This does not prohibit
+You from distributing the Software alongside such software as separate,
+independent programs on the same medium.

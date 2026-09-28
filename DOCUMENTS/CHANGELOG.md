@@ -1,5 +1,17 @@
 # Changelog
 
+## v9.5.1.2 (2026-09-28) — Artix Installer
+
+**Experimental.** Replaces `gum` with `lapka`, an in-house C99 TUI library.
+Same wrapper interface, new rendering backend.
+
+### Changed
+- TUI backend swapped from `gum` to `lapka` (`tui` binary). Call sites
+  unchanged; `gum` removed from dependencies.
+- License updated from IRX 1.0 to CLEAR v1 (successor; adds a No Copyleft
+  Combination clause). Not retroactive.
+- Docs and `PKGBUILD` updated for both changes.
+
 ## v9.5.1.1 (2026-09-27) — Artix Installer
 
 ### Fixed

@@ -10,7 +10,7 @@ public issue for security issues.
 
 | Version | Supported |
 |---------|-----------|
-| v9.5.1.1 | Latest Commits |
+| v9.5.1.2 | Latest Commits |
 | v9.5.1.0 | Latest Stable release |
 | < v9.5.1.0 | No |
 
@@ -49,8 +49,10 @@ Security concerns include, but are not limited to:
 - ATA AUR batch reinstall — packages reinstalled from AUR via third-party helper; untrusted PKGBUILDs may execute arbitrary code
 - ATA package mapping queries — local pacman database only; no external API calls for version comparison
 - ATA systemd-boot → GRUB conversion — EFI boot entries modified; old entries removed via efibootmgr
-- gum TUI transport — interactive widgets called directly via `/dev/tty`; passwords from `tui_password` and `tui_password_confirm` pass through gum's stdout, never written to temp files
-- gum checklist output — newline-separated results parsed with whitespace stripping before use; `tr -d '[]"'` applied at consumption points to prevent artifact injection into system commands (`useradd -G`, `state_set`)
+- TUI transport (lapka) — interactive widgets called directly via `/dev/tty`; passwords from `tui_password` and `tui_password_confirm` pass through the `tui` binary's stdout, never written to temp files. `tui` is invoked as a subprocess and does not link into the installer, so the CLEAR License's Combined Work restriction (Section 11) does not apply to ArtixForge
+- TUI checklist output — newline-separated results parsed with whitespace stripping before use; `tr -d '[]"'` applied at consumption points to prevent artifact injection into system commands (`useradd -G`, `state_set`)
+- Hub IN/OUT files — the form engine writes its screen description to an IN file and its collected answers to an OUT file under `/tmp/artix-installer/`. Both are created with `mktemp` (mode 0600), opened with `tui hub --check` to refuse non-root or non-0600 files, and deleted after the OUT file has been read into `state_set`. The OUT file can contain passwords, passphrases, and any other state value the hub collected
+- `tui` binary supply chain — the installer vendors a prebuilt `tui` binary from lapka's GitHub releases. If the vendored binary is absent (running from a minimal environment), the installer fetches it over HTTPS from `github.com/realvolk/lapka/releases`. Release assets are not currently signature-verified by the installer; a compromised GitHub account or a MITM with a valid TLS certificate could substitute a malicious binary. Users who require stronger guarantees should obtain the binary from the vendored copy in the source tree or build lapka from source
 - Password handling — user and root passwords are hashed with yescrypt (`$y$`) via `mkpasswd` before being stored to `state.conf`, with a fallback to SHA-512 crypt (`$6$`) via `openssl passwd -6` if `mkpasswd` is unavailable. Plaintext passwords never touch the state file or disk. LUKS passphrases are stored plaintext (required by `cryptsetup`) in the state file, which lives on tmpfs and is lost on reboot
 - Bug report tarball — contains install log, state file, debug trace, post-stage log, and retry log. State file may contain password hashes and LUKS passphrases. The tarball is written to `/tmp` with default permissions and the user is warned to include it only when reporting issues
 
@@ -85,7 +87,8 @@ The installer assumes the user is installing a system they control on hardware t
 - Per-user dotfiles repositories are cloned from user-provided URLs. The installer does not inspect the contents. Users should only provide URLs they trust.
 - Post-install scripts run as root inside the target chroot. The installer copies the script to the target but does not inspect or sanitize it. Users must provide scripts they trust.
 - One-shot post-install services run as root on first boot. The service file self-destructs on success and retries on failure. The command is stored in the service file and visible to root.
-- gum widget transport reads input from `/dev/tty` directly. Passwords pass through gum's stdout, never through temp files. No widget data is written to disk.
+- `tui` reads input from `/dev/tty` directly. Passwords pass through its stdout, never through temp files in the common case. Hub sessions do write IN/OUT files, but they are `mktemp`-created (mode 0600) under `/tmp/artix-installer/` and deleted immediately after use. Passwords collected via `tui password` or `tui password-confirm` (not hub) are never written to disk.
+- The vendored `tui` binary is committed to the ArtixForge source tree and installed from there. The `_tui_fetch_binary` fallback downloads from GitHub Releases over HTTPS when the vendored binary is missing. There is no signature verification on the fetched binary; it is trusted based on the TLS chain to GitHub. Users in high-security environments should ensure the vendored binary is present or build lapka from source.
 - The bug report tarball can contain sensitive data (password hashes, LUKS passphrases, state file). It is written to `/tmp` with restrictive permissions where possible. Users should be aware of the contents before sharing.
 - The advanced features gate requires root password for Recovery, Power User, Migration, and ISO modes. This prevents unauthorized access on shared systems.
 

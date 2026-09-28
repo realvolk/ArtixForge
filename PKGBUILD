@@ -1,13 +1,13 @@
 # Maintainer: Volk <realvolk@github.com>
 
 pkgname=artixforge
-pkgver=9.5.1.0
+pkgver=9.5.1.2
 pkgrel=1
 pkgdesc="Modular TUI installer framework for Artix Linux"
-arch=('any')
+arch=('x86_64')
 url="https://github.com/realvolk/ArtixForge"
-license=('custom:IRX License 1.0')
-depends=('bash' 'gum' 'git' 'curl' 'openssl' 'rsync' 'coreutils' 'jq' 'iso-profiles' 'whois')
+license=('custom:CLEAR License v1')
+depends=('bash' 'git' 'curl' 'openssl' 'rsync' 'coreutils' 'jq' 'iso-profiles' 'whois')
 optdepends=(
     'pacman-contrib: mirror ranking support'
     'artools: ISO build support'
@@ -16,7 +16,7 @@ optdepends=(
 )
 makedepends=('git')
 source=("${pkgname}-${pkgver}.tar.gz::https://github.com/realvolk/ArtixForge/archive/refs/tags/v${pkgver}.tar.gz")
-sha256sums=('87c2e5e0fa940e0946902bcdd0487c30d717494d3291d1d35e4d6a64c6279a32')
+sha256sums=('SKIP')
 
 package() {
     install -dm755 "${pkgdir}/usr/share/artixforge"
@@ -24,6 +24,10 @@ package() {
 
     install -dm755 "${pkgdir}/usr/bin"
     ln -sf "/usr/share/artixforge/install" "${pkgdir}/usr/bin/artixforge"
+
+    install -Dm755 "${srcdir}/ArtixForge-${pkgver}/bashisms/bin/tui-x86_64" \
+        "${pkgdir}/usr/bin/tui-x86_64"
+
     chmod +x "${pkgdir}/usr/share/artixforge/install"
 
     install -dm755 "${pkgdir}/usr/share/doc/artixforge"

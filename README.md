@@ -21,12 +21,12 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-v9.5.1.1-blue?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/Stable-v9.5.1.0-3572a5?style=flat-square" alt="Stable Release">
+  <img src="https://img.shields.io/badge/Version-v9.5.1.2-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/Stable-v9.5.1.1-3572a5?style=flat-square" alt="Stable Release">
   <img src="https://img.shields.io/badge/Artix-[galaxy--gremlins]-blue?style=flat-square&logo=artixlinux" alt="Artix Galaxy-Gremlins">
   <img src="https://img.shields.io/badge/Language-Bash-4EAA25?style=flat-square&logo=gnu-bash" alt="Bash">
-  <img src="https://img.shields.io/badge/TUI-gum-FFB6C1?style=flat-square" alt="gum">
-  <img src="https://img.shields.io/badge/License-IRX_1.0-yellow?style=flat-square" alt="License">
+  <img src="https://img.shields.io/badge/TUI-lapka-FFB6C1?style=flat-square" alt="lapka">
+  <img src="https://img.shields.io/badge/License-CLEAR_1.0-yellow?style=flat-square" alt="License">
 </p>
 
 ---
@@ -75,8 +75,8 @@ Linux. It handles partitioning, filesystem creation, base system installation,
 bootloader setup, desktop environment, drivers, and extra tools — all from a
 single interface.
 
-- Terminal UI built with `gum` — simple, fast, works in any TTY.
-- Custom colour themes (ArtixForge, Artix Blue, Jet Black, Mono, Retro) that
+- Terminal UI built on **lapka**, an in-house C99 TUI library — no `gum`, no external TUI dependency.
+- Custom colour themes (ArtixForge, Artix, Jet Black, Mono, Retro) that
   persist to the installed system.
 - Resilience hardened: pacman lock recovery, exponential backoff retries,
   mid-build resume, disk space checks at every stage.
@@ -137,7 +137,7 @@ A debug toggle is available for every mode.
 
 ## Core Installer
 
-- Terminal UI built on `gum`
+- Terminal UI built on **lapka** (in-house C99 library, `tui` binary invoked as a subprocess)
 - Sequential configuration menus with clear current values and sensible defaults
 - State file linting before pipeline — catches bad config before it bricks a system
 - State preset inheritance — one-level `BASE_STATE` with relative path resolution
@@ -213,7 +213,10 @@ A debug toggle is available for every mode.
 
 # Dependencies
 
-Everything is handled by the installer. `gum` and `jq` are installed automatically if missing.
+Everything is handled by the installer. `jq` is installed automatically if missing.
+The `tui` binary (lapka) is vendored with the installer and does not require a
+separate package. If the vendored binary is absent, the installer fetches it
+from the lapka GitHub release over HTTPS.
 
 ---
 
@@ -230,5 +233,5 @@ submissions, and [code of conduct](DOCUMENTS/CODE_OF_CONDUCT.md).
 
 # License
 
-Licensed under the [IRX License 1.0](DOCUMENTS/LICENSE)
+Licensed under the [CLEAR License v1](LICENSE)
 © [Volk](https://github.com/realvolk) 2026.

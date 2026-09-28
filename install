@@ -18,6 +18,77 @@ _die_early() {
     exit 1
 }
 
+_tui_candidate_paths() {
+    local arch
+    arch="$(uname -m)"
+    printf '%s\n' \
+        "${TUI_BIN:-}" \
+        "${BASHISMS_DIR}/bin/tui-${arch}" \
+        "${BASHISMS_DIR}/bin/tui" \
+        "${XDG_CACHE_HOME:-${HOME:-/root}/.cache}/lapka/tui-${arch}" \
+        "/var/cache/artixforge/tui-${arch}" \
+        "/tmp/artix-installer/bin/tui-${arch}"
+}
+
+_tui_find_bin() {
+    local candidate
+    while IFS= read -r candidate; do
+        [[ -n "${candidate}" && -x "${candidate}" ]] || continue
+        TUI_BIN="${candidate}"
+        return 0
+    done < <(_tui_candidate_paths)
+
+    if command -v tui >/dev/null 2>&1; then
+        TUI_BIN="$(command -v tui)"
+        return 0
+    fi
+    return 1
+}
+
+_tui_fetch_binary() {
+    local arch version url target tmp
+    arch="$(uname -m)"
+    version="v0.1.0"
+
+    case "${arch}" in
+        x86_64)  url="https://github.com/realvolk/lapka/releases/download/${version}/tui-x86_64" ;;
+        aarch64) url="https://github.com/realvolk/lapka/releases/download/${version}/tui-aarch64" ;;
+        *)
+            printf '[!] No tui binary available for architecture: %s\n' "${arch}" >&2
+            return 1
+            ;;
+    esac
+
+    if [[ -w "${BASHISMS_DIR}" ]] || [[ -w "$(dirname "${BASHISMS_DIR}")" ]]; then
+        mkdir -p "${BASHISMS_DIR}/bin"
+        target="${BASHISMS_DIR}/bin/tui-${arch}"
+    else
+        target="/tmp/artix-installer/bin/tui-${arch}"
+        mkdir -p "$(dirname "${target}")"
+    fi
+
+    printf '[*] Fetching tui %s for %s...\n' "${version}" "${arch}" >&2
+
+    tmp="$(mktemp)"
+    if ! curl -fsSL "${url}" -o "${tmp}"; then
+        printf '[!] Failed to download tui from %s\n' "${url}" >&2
+        rm -f "${tmp}"
+        return 1
+    fi
+
+    chmod 755 "${tmp}"
+    if ! "${tmp}" --version >/dev/null 2>&1; then
+        printf '[!] Downloaded tui binary failed to execute\n' >&2
+        rm -f "${tmp}"
+        return 1
+    fi
+
+    mv "${tmp}" "${target}"
+    TUI_BIN="${target}"
+    printf '[*] Installed tui to %s\n' "${target}" >&2
+    return 0
+}
+
 installer_abort() {
     clear
     printf '\n[!] Installation interrupted.\n' >&2
@@ -468,15 +539,11 @@ main() {
     require_root
     detect_boot_mode
 
-    if ! command -v gum &>/dev/null; then
-        if [[ -f "${BASE_DIR}/bin/gum" ]]; then
-            install -Dm755 "${BASE_DIR}/bin/gum" /usr/local/bin/gum
-        else
-            printf '[*] Gum not found. Installing...\n'
-            pacman -Sy --noconfirm gum 2>/dev/null || {
-                printf '[!] Failed to install gum. Install it manually and retry.\n' >&2
-                exit 1
-            }
+    if ! _tui_find_bin; then
+        if ! _tui_fetch_binary; then
+            printf '[!] tui binary not found and download failed.\n' >&2
+            printf '[!] Install lapka manually or check your network connection.\n' >&2
+            exit 1
         fi
     fi
 

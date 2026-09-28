@@ -7,13 +7,13 @@ You may not use these names to endorse or promote derived works without
 written permission, except for reasonable attribution (e.g., "based on
 Artix Installer", "a fork of ArtixForge").
 
-The IRX License 1.0 (Section 4) reinforces this policy: the license
+The CLEAR License v1 (Section 4) reinforces this policy: the license
 grants no rights to use the names, trademarks, logos, or project branding
 of the copyright holder for endorsement, promotion, or advertising of
 modified versions.
 
 If you fork a project and modify it, use a different project name.
-The IRX License (Section 3b) offers two ways to satisfy its modified-
+The CLEAR License (Section 3b) offers two ways to satisfy its modified-
 version disclosure requirement — rename, or prominently display a
 "modified" notice. This trademark policy takes the stricter path: the
 trademarked names may not be used to identify a modified version,

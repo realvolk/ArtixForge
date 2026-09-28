@@ -2,9 +2,9 @@
 
 This document describes the internal architecture of Artix Installer: how the
 state machine works, how the stage pipeline is structured, how the TUI
-integrates with gum, how the major subsystems are organized, and how to
-add a new configuration option. It is written for contributors who need to
-understand the codebase without reverse-engineering it.
+integrates with lapka (the `tui` binary), how the major subsystems are
+organized, and how to add a new configuration option. It is written for
+contributors who need to understand the codebase without reverse-engineering it.
 
 ---
 
@@ -20,12 +20,15 @@ file, making the installer, the recovery tool, the migration engine, and
 the package builder all instances of the same underlying framework.
 
 The framework is written entirely in **Bash** (≈12,000 lines). The user
-interface is provided by **gum**, a terminal UI toolkit that handles
-rendering, input, and interactive widgets.
+interface is provided by **lapka**, a C99 TUI library shipped as a static
+archive (`liblapka.a`) and a CLI binary (`tui`). The installer invokes
+`tui` as a subprocess; it does not link against `liblapka.a`. Rendering,
+input handling, and interactive widgets are all handled by the binary.
 
 All framework code lives under `bashisms/`. The repository root contains
 only the entry point (`install`), packaging (`PKGBUILD`), version metadata
-(`VERSION`), documentation (`DOCUMENTS/`), and the `bashisms/` tree itself.
+(`VERSION`), documentation (`DOCUMENTS/`), the license (`LICENSE`), and
+the `bashisms/` tree itself.
 
 ### 1.1 Directory Layout
 
@@ -34,12 +37,13 @@ only the entry point (`install`), packaging (`PKGBUILD`), version metadata
 | `bashisms/state/` | State registry, file management, validation, inheritance, encryption |
 | `bashisms/common/` | Logging, retry helpers, kernel detection, YAML parser |
 | `bashisms/packages/` | Package data (`catalog/`), query functions (`resolve.sh`), install helpers (`install.sh`) |
-| `bashisms/tui/` | gum wrappers, menus, summary rendering |
+| `bashisms/tui/` | lapka wrappers, menus, hub specs, summary rendering |
 | `bashisms/installer/` | Install pipeline: stages, storage, install modules, post-install |
 | `bashisms/recovery/` | Detection and repair subsystems |
 | `bashisms/migrations/` | Init, desktop, and ATA migrations |
 | `bashisms/iso/` | ISO builder wrapping `artools` |
 | `bashisms/poweruser/` | Source-based package manager (`anvil`) |
+| `bashisms/bin/` | Vendored `tui` binary (arch-suffixed) |
 
 ---
 
@@ -52,7 +56,9 @@ modes. Its responsibilities are:
   even on read-only media (ISO loopback, NFS).
 - **Self-update check**: compares `VERSION` against the upstream GitHub
   release and offers to update.
-- **gum bootstrap**: checks for `gum` binary, installs if missing.
+- **`tui` bootstrap**: locates the `tui` binary via `_tui_find_bin`
+  (vendored, cached, or on `PATH`) or fetches it from the lapka GitHub
+  release via `_tui_fetch_binary` if none is present.
 - **Mode dispatch**: presents a main menu (`Installation`, `Resume`,
   `Advanced`) and routes to the appropriate pipeline function. The
   Advanced menu (Recovery, Power User, Migration, ISO) requires the root
@@ -200,17 +206,42 @@ sync.
 
 ## 4. User Interface Layer (`bashisms/tui/`)
 
-All user interaction goes through gum, a terminal UI toolkit. The Bash
-side calls gum commands directly through wrapper functions.
+All user interaction goes through lapka's `tui` binary. The Bash side
+calls `tui <verb>` through wrapper functions defined in `core.sh`. Each
+wrapper handles `/dev/tty` redirection for reliable terminal access.
 
 ### 4.1 Core Transport (`core.sh`)
 
 `tui_msg`, `tui_yesno`, `tui_input`, `tui_password`, `tui_menu`,
-`tui_checklist`, `tui_filter`, and `tui_msg_quick` are thin wrappers that
-format output and call gum commands. Each wrapper handles `/dev/tty`
-redirection for reliable terminal access.
+`tui_checklist`, `tui_filter`, and `tui_msg_quick` are thin wrappers
+around `tui <verb>` subcommands. The `tui` binary is located at runtime
+via `_tui_find_bin`, which searches (in order) `$TUI_BIN`,
+`${BASHISMS_DIR}/bin/tui-$(uname -m)`, `${BASHISMS_DIR}/bin/tui`,
+`$XDG_CACHE_HOME/lapka/tui-$(uname -m)`, `/var/cache/artixforge/tui-$(uname -m)`,
+`/tmp/artix-installer/bin/tui-$(uname -m)`, and finally `command -v tui`.
+If none resolve, `_tui_fetch_binary` downloads the binary from the lapka
+GitHub release over HTTPS.
 
-### 4.2 Menu System (`menus/`)
+### 4.2 Hub (Form Engine)
+
+Lapka provides `tui hub`, a form engine that renders a screen described
+by a text file. Bash writes the form definition (categories, items,
+widget types, choices, visibility rules, current values) to an IN file,
+runs `tui hub --in=... --out=...`, and reads the collected answers from
+the OUT file as flat `KEY=value` lines. Each line is fed to `state_set`.
+
+Hub IN and OUT files live under `/tmp/artix-installer/` and are created
+with `mktemp` (mode 0600). The `--check` flag refuses to open either file
+unless it is root-owned and mode 0600 or stricter. Both files are deleted
+after the OUT file has been read into state.
+
+The hub replaces the sequential prompt pattern (`tui_select_disk`,
+`tui_select_filesystem`, etc.) with a single screen the user can navigate
+back and forth in. Conversion is incremental — each multi-prompt flow can
+be migrated to a hub independently. The existing per-prompt wrappers
+continue to work alongside hub-driven flows.
+
+### 4.3 Menu System (`menus/`)
 
 Configuration is collected through sequential menus. Each menu file
 (`main.sh`, `desktop.sh`, `user.sh`, etc.) contains functions that prompt
@@ -224,7 +255,7 @@ display stack, network, audio, shell, privilege escalation, extras, LUKS,
 AURIS, Arch repos, offline mode, hostname, timezone, locale, keyboard
 layout, users, and sanity warnings.
 
-### 4.3 Quick Profiles
+### 4.4 Quick Profiles
 
 Quick Profiles come in two forms. When the `iso-profiles` package is
 installed and `/usr/share/artools/iso-profiles/{common,base}` exist,
@@ -340,14 +371,16 @@ Recovery has two phases:
 - **Detection** (`detects/`): 30+ functions that probe the target system
   and reconstruct a state file (`reconstruct_state_from_system`).
 - **Repair** (`repairs/`): functions that fix detected issues (fstab,
-  pacman, bootloader, kernel, seat manager, filesystem).
+  pacman, bootloader, kernel, seat manager, filesystem, DNS, hostname
+  drift).
 
 The TUI presents the detected state and offers repair actions. All
 detection is read-only until the user confirms a repair. Recovery keys
 (`FSTAB_ISSUES`, `BOOT_ISSUES`, `PACMAN_ISSUES`, `MIGRATION_ISSUES`,
-`ISO_ISSUES`, `BROKEN_PACKAGES`, `SEAT_MANAGER`, `SEAT_MANAGER_DISABLED`,
-`HAS_CHAOTIC`, `RECOVERY_STATUS`) are in the state registry, so detection
-results persist across `state_save`.
+`ISO_ISSUES`, `DNS_ISSUES`, `HOSTNAME_DRIFT`, `BROKEN_PACKAGES`,
+`SEAT_MANAGER`, `SEAT_MANAGER_DISABLED`, `HAS_CHAOTIC`,
+`RECOVERY_STATUS`) are in the state registry, so detection results
+persist across `state_save`.
 
 ### 6.6 Migration (`bashisms/migrations/`)
 
@@ -407,7 +440,7 @@ A complete source-based package manager implemented in Bash. Key files:
   sub-packages, file inventory, and atomic staging.
 - `lib/kconfig_fragments.bash` — kernel config fragment processor.
 - `bin/anvil` — CLI dispatcher for post-install package management.
-- `bin/anvil_tui.bash` — gum TUI for interactive package management.
+- `bin/anvil_tui.bash` — `tui`-backed TUI for interactive package management.
 
 The Power User TUI configuration is in `bashisms/tui/menus/poweruser.sh`.
 
@@ -490,7 +523,9 @@ files:
    to `STATE_KEYS_PROFILE`. Per-user fields go in `STATE_USER_FIELDS` and
    `STATE_USER_DEFAULTS`.
 2. **TUI menu**: add the prompt in the relevant menu file under
-   `bashisms/tui/menus/`.
+   `bashisms/tui/menus/`. If the option is part of a flow that has been
+   converted to a hub, add an `item` line to the relevant hub spec
+   instead.
 3. **Catalog** (if it selects packages): add the entry to the relevant
    `bashisms/packages/catalog/*.sh` file. Add a resolver if the consumer
    needs a new query shape.
@@ -547,6 +582,8 @@ ARM support is integrated through:
   `bashisms/iso/tui.sh`.
 
 The same state machine and pipeline deploy to aarch64 without modification.
+The vendored `tui` binary is arch-suffixed (`tui-x86_64`, `tui-aarch64`),
+and `_tui_find_bin` selects the correct one for the running architecture.
 
 ---
 
@@ -559,8 +596,8 @@ a bootable Artix system. The state file is the interface, and its shape
 is defined by a single registry. Package data lives in a single catalog,
 consumed through pure query functions. The framework is modular at the
 subsystem level, with each directory under `bashisms/` capable of
-functioning as a standalone project. gum provides the TUI layer with
-simple, reliable terminal widgets.
+functioning as a standalone project. lapka provides the TUI layer as a
+C99 binary invoked per-interaction; the installer links nothing.
 
 *This document was synthesized from CODE_INDENTS.md, the live codebase,
 and the project READMEs. It is updated as the architecture evolves.*
