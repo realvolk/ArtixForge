@@ -535,6 +535,7 @@ start_system_migration() {
 }
 
 main() {
+    _term_reset
     ensure_dirs
     require_root
     detect_boot_mode
@@ -546,6 +547,9 @@ main() {
             exit 1
         fi
     fi
+
+    tui_session_begin
+    trap 'tui_session_end' EXIT
 
     if ! command -v jq &>/dev/null; then
         printf '[*] jq not found. Installing...\n'

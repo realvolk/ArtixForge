@@ -12,14 +12,12 @@ _tui_find_bin() {
     if [[ -n "${TUI_BIN:-}" ]] && [[ -x "${TUI_BIN}" ]]; then
         return 0
     fi
-    if [[ -n "${BASE_DIR:-}" ]] && [[ -x "${BASE_DIR}/bashisms/bin/tui" ]]; then
-        TUI_BIN="${BASE_DIR}/bashisms/bin/tui"
+    if [[ -n "${BASHISMS_DIR:-}" ]] && [[ -x "${BASHISMS_DIR}/bin/tui-$(uname -m)" ]]; then
+        TUI_BIN="${BASHISMS_DIR}/bin/tui-$(uname -m)"
         return 0
     fi
-    local script_dir
-    script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-    if [[ -x "${script_dir}/../bin/tui" ]]; then
-        TUI_BIN="${script_dir}/../bin/tui"
+    if [[ -n "${BASHISMS_DIR:-}" ]] && [[ -x "${BASHISMS_DIR}/bin/tui" ]]; then
+        TUI_BIN="${BASHISMS_DIR}/bin/tui"
         return 0
     fi
     if command -v tui >/dev/null 2>&1; then
@@ -29,9 +27,19 @@ _tui_find_bin() {
     return 1
 }
 
-_tui_find_bin || {
-    printf '\e[1;31m[✗] tui binary not found — checked $TUI_BIN, $BASE_DIR/bashisms/bin/tui, script-relative ../bin/tui, and PATH\e[0m\n' >&2
-    exit 1
+_term_reset() {
+    stty sane 2>/dev/null || true
+    printf '\e[?1049l\e[0m\e[?25h' >/dev/tty 2>/dev/null || true
+}
+
+tui_session_begin() {
+    printf '\033[?1049h\033[H\033[2J' > /dev/tty
+    export LAPKA_ALT_SCREEN=1
+}
+
+tui_session_end() {
+    printf '\033[?1049l' > /dev/tty
+    unset LAPKA_ALT_SCREEN
 }
 
 _ensure_log_dirs() {
@@ -85,6 +93,10 @@ tui_msg() {
     "${TUI_BIN}" msg "${title}" "${msg}" </dev/tty
 }
 
+tui_msg_quick() {
+    tui_msg "$@"
+}
+
 tui_yesno() {
     local title="${1}" msg="${2}"
     "${TUI_BIN}" yesno "${title}" "${msg}" </dev/tty
@@ -101,38 +113,15 @@ tui_password() {
     "${TUI_BIN}" password "${title}" "${msg}" </dev/tty
 }
 
-tui_msg_quick() {
-    local title="${1}" msg="${2}"
-    "${TUI_BIN}" msg "${title}" "${msg}" --no-wait </dev/tty
-}
-
 tui_password_confirm() {
     local title="${1:-Password}" prompt="${2:-Enter password:}" confirm_prompt="${3:-Confirm password:}"
-    local pass confirm
-    while true; do
-        pass=$("${TUI_BIN}" password "${title}" "${prompt}" </dev/tty) || return 1
-        [[ -n "${pass}" ]] || return 1
-        confirm=$("${TUI_BIN}" password "${title}" "${confirm_prompt}" </dev/tty) || return 1
-        [[ -n "${confirm}" ]] || return 1
-        if [[ "${pass}" == "${confirm}" ]]; then
-            printf '%s\n' "${pass}"
-            return 0
-        fi
-        tui_msg_quick "Mismatch" "Passwords do not match. Try again."
-    done
+    "${TUI_BIN}" password-confirm "${title}" "${prompt}" --confirm-prompt "${confirm_prompt}" </dev/tty
 }
 
 tui_menu() {
     local title="${1}" msg="${2}"
     shift 2
     "${TUI_BIN}" menu "${title}" "${msg}" "$@" </dev/tty
-}
-
-tui_menu_custom() {
-    local title="${1}" msg="${2}"
-    local height="${3:-15}"
-    shift 3
-    "${TUI_BIN}" menu "${title}" "${msg}" --height="${height}" "$@" </dev/tty
 }
 
 tui_checklist() {
@@ -153,7 +142,7 @@ tui_radiolist() {
 
 tui_spin() {
     local title="${1}" cmd="${2}"
-    "${TUI_BIN}" spin "${title}" -- bash -c "${cmd}" 2>&1 | while IFS= read -r line; do log_info "${line}"; done
+    "${TUI_BIN}" spin "${title}" "Running..." -- bash -c "${cmd}"
 }
 
 tui_show_file() {
