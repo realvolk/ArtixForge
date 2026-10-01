@@ -77,7 +77,7 @@ _write_config_hub() {
             "$(_hub_quote "$(state_get ENABLE_AURIS no)")"
 
         printf 'category disk "Disk"\n'
-        printf 'item key=DISK label="Target disk" widget=menu choices_cmd="lsblk -dpno NAME,SIZE,MODEL -e 7" message="ALL DATA ON THIS DISK WILL BE ERASED." value=%s\n' \
+        printf 'item key=DISK label="Target disk" widget=menu choices_cmd="lsblk -dpno NAME -e 7" message="ALL DATA ON THIS DISK WILL BE ERASED." value=%s\n' \
             "$(_hub_quote "$(state_get DISK '')")"
 
         printf 'item key=USE_LUKS label="LUKS full-disk encryption" widget=yesno value=%s\n' \
@@ -243,8 +243,9 @@ CHOICES
 _write_users_hub() {
     local f="${1}"
     local slots
-    slots="$(state_get USER_COUNT 1)"
-    [[ "${slots}" -ge 3 ]] || slots=3
+    slots="$(state_get USER_COUNT 0)"
+    [[ "${slots}" -ge 1 ]] || slots=1
+    slots=$((slots + 1))
 
     {
         printf 'hub User Accounts\n'
@@ -298,24 +299,55 @@ _run_config_hub() {
 
 _run_users_hub() {
     local in_file="${HUB_DIR}/users.in"
-    _write_users_hub "${in_file}"
-    chmod 0600 "${in_file}"
-
     local -A saved_pass
     local saved_root
-    local slots i
-    slots="$(state_get USER_COUNT 3)"
-    [[ "${slots}" -ge 3 ]] || slots=3
+    local prev_count slots i
 
-    for ((i=1; i<=slots; i++)); do
+    prev_count="$(state_get USER_COUNT 0)"
+    for ((i=1; i<=prev_count; i++)); do
         saved_pass[${i}]="$(state_get "USER_${i}_PASS" "")"
     done
     saved_root="$(state_get ROOT_PASS "")"
 
-    if ! tui_hub_apply "${in_file}" --check; then
-        die "User configuration cancelled by user"
-    fi
+    while true; do
+        _write_users_hub "${in_file}"
+        chmod 0600 "${in_file}"
 
+        if ! tui_hub_apply "${in_file}" --check; then
+            die "User configuration cancelled by user"
+        fi
+
+        slots="$(state_get USER_COUNT 0)"
+        [[ "${slots}" -ge 1 ]] || slots=1
+
+        local named=0 last_named=0
+        for ((i=1; i<=slots; i++)); do
+            local n
+            n="$(state_get "USER_${i}_NAME" "")"
+            n="${n//[$'\r'$'\n'$'\t' ]/}"
+            state_set "USER_${i}_NAME" "${n}"
+            if [[ -n "${n}" ]]; then
+                named=$((named + 1))
+                last_named="${i}"
+            fi
+        done
+
+        local extra_name
+        extra_name="$(state_get "USER_${slots}_NAME" "")"
+        if [[ -n "${extra_name}" ]]; then
+            state_set USER_COUNT "$((slots + 1))"
+            prev_count="${slots}"
+            for ((i=1; i<=slots; i++)); do
+                saved_pass[${i}]="$(state_get "USER_${i}_PASS" "")"
+            done
+            continue
+        fi
+
+        state_set USER_COUNT "${last_named}"
+        break
+    done
+
+    slots="$(state_get USER_COUNT 0)"
     for ((i=1; i<=slots; i++)); do
         local up
         up="$(state_get "USER_${i}_PASS" "")"
@@ -334,24 +366,7 @@ _run_users_hub() {
         state_set ROOT_PASS "$(generate_password_hash "${root_pass}")"
     fi
 
-    local -a rn=() rp=() rs=() rg=() ru=() rd=() rf=()
-    for ((i=1; i<=slots; i++)); do
-        local n
-        n="$(state_get "USER_${i}_NAME" "")"
-        [[ -n "${n}" ]] || continue
-        n="${n//[$'\r'$'\n'$'\t' ]/}"
-        [[ -n "${n}" ]] || continue
-        rn+=("${n}")
-        rp+=("$(state_get "USER_${i}_PASS" "")")
-        rs+=("$(state_get "USER_${i}_SHELL" "/bin/bash")")
-        rg+=("$(state_get "USER_${i}_GROUPS" "wheel,audio,video,storage")")
-        ru+=("$(state_get "USER_${i}_SUDO" "yes")")
-        rd+=("$(state_get "USER_${i}_DE" "")")
-        rf+=("$(state_get "USER_${i}_DOTFILES" "")")
-    done
-
-    local n_users="${#rn[@]}"
-    if [[ "${n_users}" -eq 0 ]]; then
+    if [[ "$(state_get USER_COUNT 0)" -eq 0 ]]; then
         state_set USER_COUNT "1"
         state_set USER_1_NAME "artix"
         state_set USER_1_PASS "$(generate_password_hash "artix")"
@@ -360,27 +375,7 @@ _run_users_hub() {
         state_set USER_1_SUDO "yes"
         state_set USER_1_DE ""
         state_set USER_1_DOTFILES ""
-        return 0
     fi
-
-    for ((i=1; i<=slots; i++)); do
-        if [[ ${i} -le ${n_users} ]]; then
-            local k=$((i-1))
-            state_set "USER_${i}_NAME"     "${rn[${k}]}"
-            state_set "USER_${i}_PASS"     "${rp[${k}]}"
-            state_set "USER_${i}_SHELL"    "${rs[${k}]}"
-            state_set "USER_${i}_GROUPS"   "${rg[${k}]}"
-            state_set "USER_${i}_SUDO"     "${ru[${k}]}"
-            state_set "USER_${i}_DE"       "${rd[${k}]}"
-            state_set "USER_${i}_DOTFILES" "${rf[${k}]}"
-        else
-            local f
-            for f in NAME PASS SHELL GROUPS SUDO DE DOTFILES; do
-                state_set "USER_${i}_${f}" ""
-            done
-        fi
-    done
-    state_set USER_COUNT "${n_users}"
 }
 
 _post_hub_derive() {
