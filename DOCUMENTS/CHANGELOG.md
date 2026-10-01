@@ -1,11 +1,27 @@
 # Changelog
 
-## v9.5.1.3 (2026-10-01) — Artix Installer
+## v9.5.1.4 (2026-10-01) — Artix Installer
 
-**Hub-driven configuration.** The installer's config phase is now one
-`lapka hub` form plus two subhubs (users, extras), generated at runtime
-from state. `bashisms/tui/menus/` is gone; `bashisms/tui/` contains only
-`core.sh`, `menus.sh`, `summary.sh`.
+### Fixed
+- **State poisoned with empty values.** `tui_collect_install_config` set every
+  quick-profile key to `""` before opening the hub. `state_get KEY default`
+  returns empty (not the default) when the key exists but is empty, so the hub
+  opened with empty menu values and wrote them back. Deleting the reset loop —
+  `start_auto_install` already wipes `state.conf`.
+- **`resolve_seat_package` crashed on empty input.** Empty `${arr[]}` subscripts
+  are a syntax error in bash. Guarded all `resolve_*` functions that subscript
+  an associative array with an unvalidated argument.
+- **DISK captured the full `lsblk` display string.** `choices_cmd` emitted
+  `/dev/vda   25G  QEMU HARDDISK`, and the whole line went into `DISK`, tripping
+  `lint_state`. Now emits `NAME` only.
+- **Users hub forced 3 slots.** Rewritten as a fixed shape: basic user + N
+  optional additional users (`USER_COUNT_EXTRA` menu) + root. No loop, no
+  re-entry.
+
+### Added
+- `USER_COUNT_EXTRA` and `SET_ROOT_PASS` state keys.
+
+## v9.5.1.3 (2026-10-01) — Artix Installer
 
 ### Changed
 - `bashisms/tui/menus/` deleted. All `tui_select_*` prompts replaced by

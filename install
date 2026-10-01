@@ -533,7 +533,6 @@ main() {
 
     iso_profiles_validate || true
     _artix_welcome
-    sleep 1
 
     clear
     main_menu

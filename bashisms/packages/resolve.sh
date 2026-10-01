@@ -21,39 +21,57 @@ resolve_de_packages() {
 }
 
 resolve_de_dm() {
-    printf '%s\n' "${DE_DISPLAY_MANAGER[${1}]:-none}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || { printf 'none\n'; return 0; }
+    printf '%s\n' "${DE_DISPLAY_MANAGER[${key}]:-none}"
 }
 
 resolve_de_display_server() {
-    printf '%s\n' "${DE_DISPLAY_SERVER[${1}]:-xorg}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || { printf 'xorg\n'; return 0; }
+    printf '%s\n' "${DE_DISPLAY_SERVER[${key}]:-xorg}"
 }
 
 resolve_de_toolkit() {
-    printf '%s\n' "${DE_TOOLKIT[${1}]:-gtk}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || { printf 'gtk\n'; return 0; }
+    printf '%s\n' "${DE_TOOLKIT[${key}]:-gtk}"
 }
 
 resolve_de_pretty_name() {
-    printf '%s\n' "${DE_PRETTY_NAME[${1}]:-${1}}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || return 0
+    printf '%s\n' "${DE_PRETTY_NAME[${key}]:-${key}}"
 }
 
 resolve_de_profile() {
-    printf '%s\n' "${DE_TO_PROFILE[${1}]:-base}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || { printf 'base\n'; return 0; }
+    printf '%s\n' "${DE_TO_PROFILE[${key}]:-base}"
 }
 
 resolve_profile_toolkit() {
-    printf '%s\n' "${PROFILE_TOOLKIT[${1}]:-gtk}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || { printf 'gtk\n'; return 0; }
+    printf '%s\n' "${PROFILE_TOOLKIT[${key}]:-gtk}"
 }
 
 resolve_seat_package() {
-    printf '%s\n' "${DE_SEAT_PACKAGE[${1}]:-}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || return 0
+    printf '%s\n' "${DE_SEAT_PACKAGE[${key}]:-}"
 }
 
 resolve_kernel_headers() {
-    printf '%s\n' "${KERNEL_HEADERS[${1}]:-}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || return 0
+    printf '%s\n' "${KERNEL_HEADERS[${key}]:-}"
 }
 
 resolve_kernel_image() {
-    printf '%s\n' "${KERNEL_PACKAGES[${1}]:-}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || return 0
+    printf '%s\n' "${KERNEL_PACKAGES[${key}]:-}"
 }
 
 resolve_de_installed_packages() {
@@ -87,11 +105,14 @@ resolve_init_packages() {
 }
 
 resolve_init_elogind() {
-    printf '%s\n' "${INIT_ELOGIND[${1}]:-}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || return 0
+    printf '%s\n' "${INIT_ELOGIND[${key}]:-}"
 }
 
 resolve_service_map() {
     local src="$1" tgt="$2" svc="$3"
+    [[ -n "${svc}" ]] || return 1
     local table="SERVICE_MAP_${src^^}_${tgt^^}"
     declare -p "$table" &>/dev/null || return 1
     local -n ref="$table"
@@ -168,7 +189,9 @@ resolve_network_packages() {
 }
 
 resolve_network_services() {
-    printf '%s\n' "${NETWORK_SERVICES[${1}]:-}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || return 0
+    printf '%s\n' "${NETWORK_SERVICES[${key}]:-}"
 }
 
 resolve_bootloader_packages() {
@@ -254,7 +277,9 @@ resolve_target_base_packages() {
 }
 
 resolve_target_shell_packages() {
-    printf '%s\n' "${TARGET_SHELL_PACKAGES[${1}]:-}"
+    local key="${1:-}"
+    [[ -n "${key}" ]] || return 0
+    printf '%s\n' "${TARGET_SHELL_PACKAGES[${key}]:-}"
 }
 
 resolve_target_storage_packages() {

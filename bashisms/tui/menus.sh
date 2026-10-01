@@ -240,12 +240,14 @@ CHOICES
             "$(_hub_quote "${hint}")"
     } > "${f}"
 }
+
 _write_users_hub() {
     local f="${1}"
-    local slots
-    slots="$(state_get USER_COUNT 0)"
-    [[ "${slots}" -ge 1 ]] || slots=1
-    slots=$((slots + 1))
+    local extras
+    extras="$(state_get USER_COUNT_EXTRA 0)"
+    [[ "${extras}" =~ ^[0-9]+$ ]] || extras=0
+    [[ "${extras}" -le 9 ]] || extras=9
+    local total=$((extras + 1))
 
     {
         printf 'hub User Accounts\n'
@@ -253,8 +255,12 @@ _write_users_hub() {
         printf 'action Proceed\n'
 
         local i
-        for ((i=1; i<=slots; i++)); do
-            printf 'category user%d "User %d"\n' "${i}" "${i}"
+        for ((i=1; i<=total; i++)); do
+            if [[ ${i} -eq 1 ]]; then
+                printf 'category user%d "Basic User"\n' "${i}"
+            else
+                printf 'category user%d "User %d"\n' "${i}" "${i}"
+            fi
 
             printf 'item key=USER_%d_NAME label="Username" widget=input value=%s\n' \
                 "${i}" "$(_hub_quote "$(state_get "USER_${i}_NAME" "")")"
@@ -299,56 +305,34 @@ _run_config_hub() {
 
 _run_users_hub() {
     local in_file="${HUB_DIR}/users.in"
-    local -A saved_pass
-    local saved_root
-    local prev_count slots i
+    _write_users_hub "${in_file}"
+    chmod 0600 "${in_file}"
 
-    prev_count="$(state_get USER_COUNT 0)"
-    for ((i=1; i<=prev_count; i++)); do
+    local extras total i
+    extras="$(state_get USER_COUNT_EXTRA 0)"
+    [[ "${extras}" =~ ^[0-9]+$ ]] || extras=0
+    [[ "${extras}" -le 9 ]] || extras=9
+    total=$((extras + 1))
+
+    local -A saved_pass
+    for ((i=1; i<=total; i++)); do
         saved_pass[${i}]="$(state_get "USER_${i}_PASS" "")"
     done
+    local saved_root
     saved_root="$(state_get ROOT_PASS "")"
 
-    while true; do
-        _write_users_hub "${in_file}"
-        chmod 0600 "${in_file}"
+    if ! tui_hub_apply "${in_file}" --check; then
+        die "User configuration cancelled by user"
+    fi
 
-        if ! tui_hub_apply "${in_file}" --check; then
-            die "User configuration cancelled by user"
-        fi
-
-        slots="$(state_get USER_COUNT 0)"
-        [[ "${slots}" -ge 1 ]] || slots=1
-
-        local named=0 last_named=0
-        for ((i=1; i<=slots; i++)); do
-            local n
-            n="$(state_get "USER_${i}_NAME" "")"
-            n="${n//[$'\r'$'\n'$'\t' ]/}"
-            state_set "USER_${i}_NAME" "${n}"
-            if [[ -n "${n}" ]]; then
-                named=$((named + 1))
-                last_named="${i}"
-            fi
-        done
-
-        local extra_name
-        extra_name="$(state_get "USER_${slots}_NAME" "")"
-        if [[ -n "${extra_name}" ]]; then
-            state_set USER_COUNT "$((slots + 1))"
-            prev_count="${slots}"
-            for ((i=1; i<=slots; i++)); do
-                saved_pass[${i}]="$(state_get "USER_${i}_PASS" "")"
-            done
-            continue
-        fi
-
-        state_set USER_COUNT "${last_named}"
-        break
+    for ((i=1; i<=total; i++)); do
+        local n
+        n="$(state_get "USER_${i}_NAME" "")"
+        n="${n//[$'\r'$'\n'$'\t' ]/}"
+        state_set "USER_${i}_NAME" "${n}"
     done
 
-    slots="$(state_get USER_COUNT 0)"
-    for ((i=1; i<=slots; i++)); do
+    for ((i=1; i<=total; i++)); do
         local up
         up="$(state_get "USER_${i}_PASS" "")"
         if [[ -z "${up}" ]]; then
@@ -366,8 +350,14 @@ _run_users_hub() {
         state_set ROOT_PASS "$(generate_password_hash "${root_pass}")"
     fi
 
-    if [[ "$(state_get USER_COUNT 0)" -eq 0 ]]; then
-        state_set USER_COUNT "1"
+    local named=0
+    for ((i=1; i<=total; i++)); do
+        [[ -n "$(state_get "USER_${i}_NAME" "")" ]] && named="${i}"
+    done
+    [[ "${named}" -ge 1 ]] || named=1
+    state_set USER_COUNT "${named}"
+
+    if [[ "$(state_get USER_1_NAME "")" == "" ]]; then
         state_set USER_1_NAME "artix"
         state_set USER_1_PASS "$(generate_password_hash "artix")"
         state_set USER_1_SHELL "/bin/bash"
@@ -856,18 +846,6 @@ tui_collect_install_config() {
         return
     fi
 
-    local quick_vars=(
-        QUICK_PROFILE FS_TYPE BOOTLOADER KERNEL_CHOICE INIT PRIV_ESCALATION
-        USE_LUKS USE_LVM GENERATE_UKI ALLOW_OFFLINE ENABLE_ARCH_REPOS
-        MICROCODE_OVERRIDE KEEP_BINARY_KERNEL COREUTILS KERNEL_CONFIG_DEPTH
-        WM_DE KDE_PROFILE DISPLAY_MANAGER NETWORK_STACK AUDIO_STACK X_STACK
-        USER_SHELL EXTRAS POWER_USER POWERUSER_PACKAGES POWERUSER_PROFILE
-        SWAP_ENABLED SWAP_SIZE LUKS_KEYFILE LUKS_KEYFILE_PATH LUKS_PASS
-    )
-    local var
-    for var in "${quick_vars[@]}"; do
-        state_set "${var}" ""
-    done
     state_set QUICK_INSTALL "no"
 
     _run_config_hub
