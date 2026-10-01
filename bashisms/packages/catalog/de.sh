@@ -193,3 +193,25 @@ DE_MIGRATION_SOURCES=(
     kde xfce4 lxqt lxde mate hyprland sway niri
     i3wm dwm vxwm icewm mango sonicde none
 )
+
+declare -ga DE_INSTALL_CHOICES
+DE_INSTALL_CHOICES=(
+    "kde|KDE Plasma"
+    "xfce4|XFCE"
+    "lxqt|LXQt"
+    "lxde|LXDE"
+    "mate|MATE"
+    "cinnamon|Cinnamon"
+    "budgie|Budgie"
+    "moksha|Moksha"
+    "cosmic|COSMIC"
+    "hyprland|Hyprland"
+    "sway|Sway"
+    "niri|Niri"
+    "i3wm|i3"
+    "dwm|dwm"
+    "icewm|IceWM"
+    "mango|MangoWM"
+    "vxwm|vxwm"
+    "none|None"
+)

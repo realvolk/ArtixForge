@@ -6,7 +6,7 @@ ISO_BASE_PACKAGES=(
     base base-devel linux-firmware bash nano vim sudo git curl wget pciutils
     mkinitcpio efibootmgr dosfstools gptfdisk parted cryptsetup lvm2
     btrfs-progs xfsprogs f2fs-tools exfat-utils e2fsprogs
-    gum artools-base artools-iso artools-pkg openssl rsync grub artix-grub-theme artix-grub-live
+    artools-base artools-iso artools-pkg openssl rsync grub artix-grub-theme artix-grub-live
     bc cpio pahole libelf ex-vi-compat
 )
 

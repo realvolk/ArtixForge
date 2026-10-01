@@ -18,7 +18,14 @@ stage_storage() {
         partition_disk
     fi
 
-    create_filesystems
+    local _rp
+    _rp="$(state_get ROOT_PART '')"
+    if [[ -z "${_rp}" ]] || ! blkid -s TYPE -o value "${_rp}" 2>/dev/null | grep -q .; then
+        create_filesystems
+    else
+        log_info "Root filesystem already present on ${_rp} — skipping format"
+    fi
+
     mount_filesystems
     stage_mark_done storage
 }

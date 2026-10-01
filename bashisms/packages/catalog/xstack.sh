@@ -8,3 +8,6 @@ X_STACK_PACKAGES=(
     [wayland]=""
     [none]=""
 )
+
+declare -ga X_STACK_LIST
+X_STACK_LIST=(xorg xorg-tearfree none)

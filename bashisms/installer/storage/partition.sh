@@ -160,5 +160,15 @@ partition_disk() {
         _partition_setup_lvm "${disk}" "${root_part}" "${root_num}"
     fi
 
+    if [[ "${ARTIX_BOOT_MODE:-uefi}" != "bios" ]]; then
+        state_set EFI_PART "$(get_partition_name "${disk}" 1)"
+    fi
+    local _root_num
+    _root_num=$(_get_root_partition_num "${use_swap}")
+    state_set ROOT_PART "$(get_partition_name "${disk}" "${_root_num}")"
+    if [[ "${use_swap}" == "yes" ]]; then
+        state_set SWAP_PART "$(get_partition_name "${disk}" 2)"
+    fi
+
     log_info "Partitioning complete."
 }

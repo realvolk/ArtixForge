@@ -21,3 +21,6 @@ AUDIO_CONFLICTS=(
     [pipewire]="pulseaudio pulseaudio-alsa jack2"
     [pulseaudio]="pipewire pipewire-pulse pipewire-alsa pipewire-jack wireplumber"
 )
+
+declare -ga AUDIO_LIST
+AUDIO_LIST=(pipewire pulseaudio none)

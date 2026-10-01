@@ -18,33 +18,6 @@ _die_early() {
     exit 1
 }
 
-_tui_candidate_paths() {
-    local arch
-    arch="$(uname -m)"
-    printf '%s\n' \
-        "${TUI_BIN:-}" \
-        "${BASHISMS_DIR}/bin/tui-${arch}" \
-        "${BASHISMS_DIR}/bin/tui" \
-        "${XDG_CACHE_HOME:-${HOME:-/root}/.cache}/lapka/tui-${arch}" \
-        "/var/cache/artixforge/tui-${arch}" \
-        "/tmp/artix-installer/bin/tui-${arch}"
-}
-
-_tui_find_bin() {
-    local candidate
-    while IFS= read -r candidate; do
-        [[ -n "${candidate}" && -x "${candidate}" ]] || continue
-        TUI_BIN="${candidate}"
-        return 0
-    done < <(_tui_candidate_paths)
-
-    if command -v tui >/dev/null 2>&1; then
-        TUI_BIN="$(command -v tui)"
-        return 0
-    fi
-    return 1
-}
-
 _tui_fetch_binary() {
     local arch version url target tmp
     arch="$(uname -m)"
@@ -225,7 +198,6 @@ verify_installer_layout() {
     local file dir
     for file in "${required_files[@]}"; do [[ -f "${file}" ]] || return 1; done
     for dir in "${required_dirs[@]}"; do [[ -d "${dir}" ]] || return 1; done
-    [[ -d "${BASHISMS_DIR}/tui/menus" ]] || return 1
     return 0
 }
 

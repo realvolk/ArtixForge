@@ -179,7 +179,7 @@ fi
     local root_password root_hash
     root_password="$(state_get ROOT_PASS "")"
     if [[ -n "${root_password}" ]]; then
-        if [[ "${root_password}" == '$6$'* ]]; then
+        if [[ "${root_password}" == '$6$'* || "${root_password}" == '$y$'* ]]; then
             root_hash="${root_password}"
         else
             root_hash=$(generate_password_hash "${root_password}") || die 'failed to hash root password'

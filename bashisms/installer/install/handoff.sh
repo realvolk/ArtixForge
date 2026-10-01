@@ -68,8 +68,6 @@ prepare_handoff() {
 
     log_info "Writing installer configuration..."
     install -Dm600 /dev/null /mnt/etc/artix-installer.conf
-    log_info "Writing installer configuration..."
-    install -Dm600 /dev/null /mnt/etc/artix-installer.conf
     {
         for key in "${STATE_KEYS_CHROOT[@]}"; do
             printf '%s="%s"\n' "${key}" "$(state_get "${key}" "${STATE_DEFAULTS[$key]:-}")"

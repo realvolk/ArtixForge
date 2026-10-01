@@ -309,10 +309,10 @@ configure_bootloader() {
                 --unicode "${uki_cmdline}" --verbose \
                 || log_warn "Failed to create UKI EFI boot entry"
 
-            if tui_yesno "Secure Boot" "Sign the UKI for Secure Boot?"; then
+            if [[ "$(state_get SIGN_UKI no)" == "yes" ]]; then
                 local sb_key sb_cert
-                sb_key=$(tui_input "Secure Boot" "Path to DB.key (on target):" "/etc/secureboot/DB.key")
-                sb_cert=$(tui_input "Secure Boot" "Path to DB.crt (on target):" "/etc/secureboot/DB.crt")
+                sb_key="$(state_get SECUREBOOT_DB_KEY /etc/secureboot/DB.key)"
+                sb_cert="$(state_get SECUREBOOT_DB_CERT /etc/secureboot/DB.crt)"
                 if [[ -f "/mnt${sb_key}" && -f "/mnt${sb_cert}" ]]; then
                     log_info "Removing stale signed UKI boot entries on target ESP..."
                     if [[ -n "${target_esp_guid}" ]]; then

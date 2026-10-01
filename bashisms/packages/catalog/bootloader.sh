@@ -12,3 +12,6 @@ BOOTLOADER_PACKAGES=(
 
 declare -ga BOOTLOADER_EXTRA_EFI
 BOOTLOADER_EXTRA_EFI=(efibootmgr dosfstools)
+
+declare -ga BOOTLOADER_LIST
+BOOTLOADER_LIST=(grub refind efistub limine)

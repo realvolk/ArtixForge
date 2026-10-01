@@ -1,5 +1,51 @@
 # Changelog
 
+## v9.5.1.3 (2026-10-01) — Artix Installer
+
+**Hub-driven configuration.** The installer's config phase is now one
+`lapka hub` form plus two subhubs (users, extras), generated at runtime
+from state. `bashisms/tui/menus/` is gone; `bashisms/tui/` contains only
+`core.sh`, `menus.sh`, `summary.sh`.
+
+### Changed
+- `bashisms/tui/menus/` deleted. All `tui_select_*` prompts replaced by
+  hub fields with `visible_if` conditions.
+- Secure Boot UKI signing prompt moved from `stage_chroot` to the config
+  hub. New state keys: `SIGN_UKI`, `SECUREBOOT_DB_KEY`,
+  `SECUREBOOT_DB_CERT`.
+- Extras selection is now a subhub: curated list + full `world galaxy`
+  catalogue, filtered by `EXTRAS_SAFETY_FILTER`, as one searchable
+  `filter` widget.
+- User accounts are a hub form with per-user categories and a root
+  category. Slot renumbering eliminates gaps; passwords preserved
+  across re-entry.
+
+### Fixed
+- `recoverable_error` still gated on `command -v gum`; recovery menu
+  silently skipped after the lapka migration. Guard now checks
+  `TUI_BIN`.
+- `stage_storage` re-partitioned on every re-entry because `EFI_PART`
+  was not persisted. Added `EFI_PART`, `ROOT_PART`, `SWAP_PART` to
+  `STATE_KEYS`; `create_filesystems` now skips when root already has
+  a filesystem.
+- Root password stored in plaintext in presets. Hashed at config time;
+  `configure_users` accepts `$y$` as well as `$6$`.
+- Swap size ignored human-readable input. `4G` / `512M` converted via
+  `parse_size_to_mb`.
+- Empty user list produced no users. Falls through to default `artix`.
+- Usernames not sanitised; whitespace caused a silent skip.
+- Display manager choice not constrained by desktop.
+- Duplicate `install -Dm600` in `install/handoff.sh` removed.
+
+### Removed
+- `gum` is no longer a dependency or runtime requirement.
+- `bashisms/tui/menus/*.sh` — logic now lives in `menus.sh`.
+
+### Added
+- `tui_toast`, `tui_hub`, `tui_hub_apply`, `tui_run_interactive`,
+  `tui_spin_argv` in `core.sh`.
+- `LAPKA_THEME` resolves to `/usr/share/artixforge/themes/`.
+
 ## v9.5.1.2 (2026-09-28) — Artix Installer
 
 **Experimental.** Replaces `gum` with `lapka`, an in-house C99 TUI library.

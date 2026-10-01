@@ -28,6 +28,9 @@ package() {
     install -Dm755 "${srcdir}/ArtixForge-${pkgver}/bashisms/bin/tui-x86_64" \
         "${pkgdir}/usr/bin/tui-x86_64"
 
+    install -dm755 "${pkgdir}/usr/share/artixforge/themes"
+    cp -a "${srcdir}/ArtixForge-${pkgver}/themes/." "${pkgdir}/usr/share/artixforge/themes/" 2>/dev/null || true
+
     chmod +x "${pkgdir}/usr/share/artixforge/install"
 
     install -dm755 "${pkgdir}/usr/share/doc/artixforge"

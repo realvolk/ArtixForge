@@ -281,7 +281,7 @@ recoverable_error() {
     local msg="${1}"
     log_error "${msg}"
 
-    if ! command -v gum &>/dev/null || [[ ! -c /dev/tty ]]; then
+    if [[ -z "${TUI_BIN:-}" || ! -c /dev/tty ]]; then
         return 1
     fi
 

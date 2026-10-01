@@ -10,7 +10,7 @@ public issue for security issues.
 
 | Version | Supported |
 |---------|-----------|
-| v9.5.1.2 | Latest Commits |
+| v9.5.1.3 | Latest Commits |
 | v9.5.1.0 | Latest Stable release |
 | < v9.5.1.0 | No |
 

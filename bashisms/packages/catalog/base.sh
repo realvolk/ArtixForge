@@ -21,3 +21,15 @@ TARGET_STORAGE_PACKAGES=(
 
 declare -ga TARGET_UKI_PACKAGES
 TARGET_UKI_PACKAGES=(eukify)
+
+declare -ga SHELL_LIST
+SHELL_LIST=(bash zsh fish)
+
+declare -ga PRIV_LIST
+PRIV_LIST=(sudo doas none)
+
+declare -ga MICROCODE_LIST
+MICROCODE_LIST=(auto intel amd none)
+
+declare -ga OFFLINE_LIST
+OFFLINE_LIST=(no yes)
