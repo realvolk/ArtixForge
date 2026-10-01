@@ -24,7 +24,7 @@ tui_migration_menu() {
                 source "${MIGRATIONS_DIR}/inits/common.sh"
                 tui_init_migration_menu
             else
-                tui_msg_quick "Not Available" "Init migration module not found."
+                tui_msg "Not Available" "Init migration module not found."
             fi
             ;;
         "Desktop Environment"*)
@@ -32,7 +32,7 @@ tui_migration_menu() {
                 source "${MIGRATIONS_DIR}/des/common.sh"
                 tui_de_migration_menu
             else
-                tui_msg_quick "Not Available" "Desktop migration module not found."
+                tui_msg "Not Available" "Desktop migration module not found."
             fi
             ;;
         "Arch Linux → Artix"*)

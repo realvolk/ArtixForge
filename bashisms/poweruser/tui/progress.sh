@@ -13,5 +13,5 @@ tui_build_timing_summary() {
         summary+="${icon} ${pkg} — ${duration}s (${status})"$'\n'
     done < "${timing_file}"
 
-    tui_msg_quick "Build Timing Summary" "${summary}"
+    tui_msg "Build Timing Summary" "${summary}"
 }

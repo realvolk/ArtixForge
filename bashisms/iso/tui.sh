@@ -201,7 +201,7 @@ just completed. The live environment stays as you set it."
 
 start_iso_build() {
     if [[ -d /run/artix/sfs/rootfs ]]; then
-        tui_msg_quick "Not Supported" "ISO building from a live environment is not supported due to overlayfs limitations in artools.\n\nPlease build ISOs from an installed Artix system."
+        tui_msg "Not Supported" "ISO building from a live environment is not supported due to overlayfs limitations in artools.\n\nPlease build ISOs from an installed Artix system."
         return 0
     fi
 
@@ -276,9 +276,9 @@ start_iso_build() {
                     for var in FS_TYPE BOOTLOADER KERNEL_CHOICE INIT PRIV_ESCALATION USE_LUKS USE_LVM GENERATE_UKI ALLOW_OFFLINE ENABLE_ARCH_REPOS MICROCODE_OVERRIDE KEEP_BINARY_KERNEL COREUTILS KERNEL_CONFIG_DEPTH WM_DE KDE_PROFILE DISPLAY_MANAGER NETWORK_STACK AUDIO_STACK X_STACK USER_SHELL EXTRAS POWER_USER POWERUSER_PACKAGES POWERUSER_PROFILE; do
                         [[ -n "${!var:-}" ]] && state_set "${var}" "${!var}"
                     done
-                    tui_msg_quick "Profile Loaded" "Configuration loaded from ${profile_file}"
+                    tui_msg "Profile Loaded" "Configuration loaded from ${profile_file}"
                 else
-                    tui_msg_quick "Error" "Profile file not found: ${profile_file}"
+                    tui_msg "Error" "Profile file not found: ${profile_file}"
                     return 1
                 fi
                 ;;

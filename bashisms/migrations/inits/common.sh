@@ -51,11 +51,11 @@ ensure_migration_root() {
         mount_choice=$(tui_menu "Target Selection" "How do you want to locate the target system?" \
             "Auto-mount (LUKS/LVM/plain)" \
             "Use /mnt (already mounted)" \
-            "Specify mount point") || { tui_msg_quick "Cancelled" "Migration cancelled."; exit 0; }
+            "Specify mount point") || { tui_msg "Cancelled" "Migration cancelled."; exit 0; }
 
         case "${mount_choice}" in
             "Auto-mount"*)
-                recovery_mount_all || { tui_msg_quick "Mount Failed" "Could not mount target system."; exit 1; }
+                recovery_mount_all || { tui_msg "Mount Failed" "Could not mount target system."; exit 1; }
                 MIG_ROOT="/mnt"
                 ;;
             "Use /mnt"*)
@@ -72,7 +72,7 @@ ensure_migration_root() {
         local choice
         choice=$(tui_menu "Migration Target" "Which system do you want to migrate?" \
             "This running system" \
-            "A mounted installation") || { tui_msg_quick "Cancelled" "Migration cancelled."; exit 0; }
+            "A mounted installation") || { tui_msg "Cancelled" "Migration cancelled."; exit 0; }
 
         case "${choice}" in
             "This running"*)
@@ -618,7 +618,7 @@ tui_init_migration_menu() {
     detect_init >/dev/null 2>&1 || true
     local current_init
     current_init=$(state_get INIT openrc)
-    tui_msg_quick "Current Init" "Detected init system: ${current_init}"
+    tui_msg "Current Init" "Detected init system: ${current_init}"
 
     local source_init target_init
     source_init=$(tui_menu "Source Init" "Select current init system:" \

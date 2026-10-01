@@ -395,7 +395,7 @@ PACMAN
         cp -f "${iso_file}" "${user_output_dir}/"
         [[ -n "${iso_log:-}" && -f "${iso_log}" ]] && cp -f "${iso_log}" "${user_output_dir}/" 2>/dev/null || true
         log_info "ISO created: ${user_output_dir}/${iso_file##*/}"
-        tui_msg_quick "ISO Ready" "ISO created at:
+        tui_msg "ISO Ready" "ISO created at:
 ${user_output_dir}/${iso_file##*/}
 
 Build log:

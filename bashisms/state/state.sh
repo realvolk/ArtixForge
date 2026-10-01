@@ -349,7 +349,7 @@ state_encrypt_preset() {
     local passphrase confirm
     passphrase=$(tui_password "Preset Encryption" "Enter passphrase to encrypt this preset:") || return 1
     confirm=$(tui_password "Preset Encryption" "Confirm passphrase:") || return 1
-    [[ "${passphrase}" == "${confirm}" ]] || { tui_msg_quick "Mismatch" "Passphrases do not match."; return 1; }
+    [[ "${passphrase}" == "${confirm}" ]] || { tui_msg "Mismatch" "Passphrases do not match."; return 1; }
 
     local temp_encrypted
     temp_encrypted=$(mktemp)
@@ -386,7 +386,7 @@ state_decrypt_preset() {
     tail -n +2 "${encrypted}" | base64 -d > "${temp_base64}" 2>/dev/null
     gpg --decrypt --batch --yes --passphrase-fd 3 3<<<"${passphrase}" \
         --output "${temp_decrypted}" "${temp_base64}" 2>/dev/null || {
-        tui_msg_quick "Decryption Failed" "Wrong passphrase or corrupted file."
+        tui_msg "Decryption Failed" "Wrong passphrase or corrupted file."
         rm -f "${temp_base64}" "${temp_decrypted}"
         return 1
     }

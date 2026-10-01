@@ -256,7 +256,7 @@ detect_boot_mode() {
 }
 
 _artix_welcome() {
-    tui_msg_quick "Artix Linux" "
+    tui_msg "Artix Linux" "
    __________________________
  < Simple. Fast. Systemd-free. >
   --------------------------
@@ -335,7 +335,7 @@ main_menu() {
             Installation*)  MODE='auto' ; break ;;
             Advanced*)
                 if ! _verify_root_password; then
-                    tui_msg_quick "Access Denied" "Incorrect root password."
+                    tui_msg "Access Denied" "Incorrect root password."
                     continue
                 fi
                 local advanced_choice
@@ -360,7 +360,7 @@ main_menu() {
         esac
     done
 
-    tui_msg_quick "Mode Selected" "Mode: ${MODE}   Debug: ${DEBUG}"
+    tui_msg "Mode Selected" "Mode: ${MODE}   Debug: ${DEBUG}"
 }
 
 run_install_pipeline() {
@@ -455,7 +455,7 @@ start_recovery_install() {
         if tui_yesno "Auto-mount" "Attempt to automatically unlock LUKS, activate LVM, and mount the installation?"; then
             recovery_mount_all
         else
-            clear; tui_msg_quick "Recovery Cancelled" "Recovery cancelled by user."; exit 0
+            clear; tui_msg "Recovery Cancelled" "Recovery cancelled by user."; exit 0
         fi
     fi
 
@@ -471,7 +471,7 @@ This usually means a previous installation
 was interrupted or partially completed.
 
 Attempt recovery and continue installation?"; then
-        clear; tui_msg_quick "Recovery Cancelled" "Recovery cancelled by user."; exit 0
+        clear; tui_msg "Recovery Cancelled" "Recovery cancelled by user."; exit 0
     fi
     log_info "Entering recovery mode..."
 
@@ -494,7 +494,7 @@ Attempt recovery and continue installation?"; then
     fi
 
     clear
-    tui_msg_quick "Recovery" "Recovery mode exited. System remains at /mnt."
+    tui_msg "Recovery" "Recovery mode exited. System remains at /mnt."
 }
 
 start_system_migration() {
@@ -502,7 +502,7 @@ start_system_migration() {
         source "${BASHISMS_DIR}/migrations/migrate.sh"
         tui_migration_menu
     else
-        tui_msg_quick "Not Available" "Migration module not found at bashisms/migrations/migrate.sh"
+        tui_msg "Not Available" "Migration module not found at bashisms/migrations/migrate.sh"
     fi
 }
 

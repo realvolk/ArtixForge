@@ -46,11 +46,11 @@ ensure_migration_root() {
         mount_choice=$(tui_menu "Target Selection" "How do you want to locate the target system?" \
             "Auto-mount (LUKS/LVM/plain)" \
             "Use /mnt (already mounted)" \
-            "Specify mount point") || { tui_msg_quick "Cancelled" "Migration cancelled."; exit 0; }
+            "Specify mount point") || { tui_msg "Cancelled" "Migration cancelled."; exit 0; }
 
         case "${mount_choice}" in
             "Auto-mount"*)
-                recovery_mount_all || { tui_msg_quick "Mount Failed" "Could not mount target system."; exit 1; }
+                recovery_mount_all || { tui_msg "Mount Failed" "Could not mount target system."; exit 1; }
                 MIG_ROOT="/mnt"
                 ;;
             "Use /mnt"*)
@@ -67,7 +67,7 @@ ensure_migration_root() {
         local choice
         choice=$(tui_menu "Migration Target" "Which system do you want to migrate?" \
             "This running system" \
-            "A mounted installation") || { tui_msg_quick "Cancelled" "Migration cancelled."; exit 0; }
+            "A mounted installation") || { tui_msg "Cancelled" "Migration cancelled."; exit 0; }
 
         case "${choice}" in
             "This running"*)
@@ -525,7 +525,7 @@ You can:\n
                     [[ -n "$pkg" ]] && orphans_array+=("$pkg")
                 done <<< "$orphan_list"
 
-                tui_msg_quick "Orphaned Packages" "The following packages are now orphaned:\n\n${orphan_list}"
+                tui_msg "Orphaned Packages" "The following packages are now orphaned:\n\n${orphan_list}"
 
                 local to_remove
                 to_remove=$(tui_checklist "Remove Orphans" "Select orphaned packages to remove:" "${orphans_array[@]}") || true
@@ -589,7 +589,7 @@ You can:\n
 tui_de_migration_menu() {
     local current_de
     current_de=$(detect_current_de)
-    tui_msg_quick "Current Desktop" "Detected desktop environment: ${current_de}"
+    tui_msg "Current Desktop" "Detected desktop environment: ${current_de}"
 
     local -a source_options=("kde" "sonicde")
     local -a target_options=("kde")
